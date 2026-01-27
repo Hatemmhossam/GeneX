@@ -17,6 +17,8 @@ class _SigninViewState extends ConsumerState<SigninView> {
   final _emailCtr = TextEditingController();
   final _passwordCtr = TextEditingController();
 
+  bool _obscurePassword = true; 
+
   @override
   void dispose() {
     _emailCtr.dispose();
@@ -56,8 +58,20 @@ class _SigninViewState extends ConsumerState<SigninView> {
               ),
               TextFormField(
                 controller: _passwordCtr,
-                decoration: InputDecoration(labelText: 'Password'),
-                obscureText: true,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Password', 
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
                 validator: (v) => v != null && v.length >= 6 ? null : 'Min 6 chars',
               ),
               SizedBox(height: 20),

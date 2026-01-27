@@ -1,34 +1,24 @@
-// lib/models/medicine_model.dart
 class MedicineHistory {
+  final int? id; // Database ID from Django
   final String name;
-  // final String dosage;
-  // final String startDate;
-  // final String endDate;
+  final String? date; // added_at from Django
 
-  MedicineHistory({
-    required this.name,
-    // required this.dosage,
-    // required this.startDate,
-    // required this.endDate,
-  });
+  MedicineHistory({this.id, required this.name, this.date});
 
   // Factory method to create MedicineHistory from JSON
   factory MedicineHistory.fromJson(Map<String, dynamic> json) {
     return MedicineHistory(
+      id: json['id'],
       name: json['name'],
-      // dosage: json['dosage'],
-      // startDate: json['start_date'],
-      // endDate: json['end_date'] ?? '',
+      date: json['added_at'],
     );
   }
 
-  // Method to convert MedicineHistory to JSON
+  // Method to convert MedicineHistory to JSON for POST requests
   Map<String, dynamic> toJson() {
     return {
       'name': name,
-      // 'dosage': dosage,
-      // 'start_date': startDate,
-      // 'end_date': endDate,
+      'added_at': date,
     };
   }
 }

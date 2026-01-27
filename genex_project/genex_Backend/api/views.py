@@ -1,41 +1,36 @@
-# views.py
-from .models import User, Medicine
+from django.http import JsonResponse
+from rest_framework import status, views, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
-import json
-from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import status, views
+
+from .models import User, Medicine
 from .serializers import UserSerializer, MedicineSerializer
-from django.http import JsonResponse
 
-from rest_framework import viewsets, permissions 
-from .models import Medicine
-
-from rest_framework.permissions import AllowAny
-
-
-# Helper function to generate JWT token
+# --- Helper: JWT Token Generation ---
 def get_tokens_for_user(user):
+    """Generates an access token for a specific user."""
     refresh = RefreshToken.for_user(user)
     return str(refresh.access_token)
+
+
+# --- API Root ---
+def api_root(request):
+    return JsonResponse({"message": "GENEX API is running"})
+
+
+# --- Authentication Views ---
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def signup(request):
+    """Handles User registration and returns a JWT token."""
     data = request.data
-
     email = data.get('email')
     password = data.get('password')
     name = data.get('name')
-    role = data.get('role', 'patient')
-
-    age = data.get('age')
-    gender = data.get('gender')
-    height = data.get('height')
-    weight = data.get('weight')
 
     if not email or not password or not name:
         return Response(
@@ -45,145 +40,92 @@ def signup(request):
 
     if User.objects.filter(username=email).exists():
         return Response(
-            {"error": "User already exists"},
+            {"error": "User with this email already exists"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Create user with all optional profile fields
     user = User.objects.create_user(
         username=email,
         email=email,
         password=password,
         first_name=name,
-        role=role,
-        age=age,
-        gender=gender,
-        height=height,
-        weight=weight,
+        role=data.get('role', 'patient'),
+        age=data.get('age'),
+        gender=data.get('gender'),
+        height=data.get('height'),
+        weight=data.get('weight'),
     )
 
     token = get_tokens_for_user(user)
-
-    return Response(
-        {
-            "token": token,
-            "user": {
-                "id": user.id,
-                "name": user.first_name,
-                "email": user.email,
-                "role": user.role,
-                "age": user.age,
-                "gender": user.gender,
-                "height": user.height,
-                "weight": user.weight,
-            },
-        },
-        status=status.HTTP_201_CREATED,
-    )
+    return Response({
+        "token": token,
+        "user": UserSerializer(user).data
+    }, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def signin(request):
-    """
-    Sign in existing user and return JWT token with user info
-    """
-    data = request.data
-    email = data.get('email')
-    password = data.get('password')
+    """Authenticates user and returns JWT token."""
+    email = request.data.get('email')
+    password = request.data.get('password')
 
     if not email or not password:
-        return Response({"error": "Email and password are required"},
-                        status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "Email and password are required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     try:
         user = User.objects.get(username=email)
     except User.DoesNotExist:
-        return Response({"error": "Invalid credentials"},
-                        status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     if not user.check_password(password):
-        return Response({"error": "Invalid credentials"},
-                        status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     token = get_tokens_for_user(user)
-
-    # You can get role from profile if you have a profile model
-
     return Response({
         "token": token,
-        "user": {
-            "id": user.id,
-            "name": user.first_name,
-            "email": user.email,
-            "role": user.role 
-        }
-    })
+        "user": UserSerializer(user).data
+    }, status=status.HTTP_200_OK)
+
+
+# --- Profile Views ---
 
 class ProfileView(views.APIView):
+    """View to retrieve or update the authenticated user's profile."""
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # This single method handles the request
         serializer = UserSerializer(request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
+        return Response(serializer.data)
+
     def patch(self, request):
-        user = request.user
-        serializer = UserSerializer(user, data=request.data, partial=True)
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-
-def api_root(request):
-    return JsonResponse({
-        "message": "GENEX API is running"
-    })
-
-
-
-# START OF MEDICINE VIEWS
-
-# class MedicineListCreateView(APIView):
-#     authentication_classes = [JWTAuthentication]
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-#         medicines = Medicine.objects.filter(user=request.user)
-#         serializer = MedicineSerializer(medicines, many=True)
-#         return Response(serializer.data)
-
-#     def post(self, request):
-#         serializer = MedicineSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save(user=request.user)
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-# class MedicineDeleteView(APIView):
-#     authentication_classes = [JWTAuthentication]
-#     permission_classes = [IsAuthenticated]
-
-#     def delete(self, request, pk):
-#         try:
-#             medicine = Medicine.objects.get(pk=pk, user=request.user)
-#             medicine.delete()
-#             return Response(status=status.HTTP_204_NO_CONTENT)
-#         except Medicine.DoesNotExist:
-#             return Response({"error": "Medicine not found"}, status=status.HTTP_404_NOT_FOUND)
-
+# --- Medicine Views ---
 
 class MedicineViewSet(viewsets.ModelViewSet):
+    """
+    Handles List, Create, and Delete for Patient Medicines.
+    Uses JWT to ensure users only access their own data.
+    """
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     serializer_class = MedicineSerializer
 
     def get_queryset(self):
-        return Medicine.objects.filter(user=self.request.user)
+        # Automatically filters so patients only see their OWN medicine history
+        return Medicine.objects.filter(user=self.request.user).order_by('-added_at')
 
     def perform_create(self, serializer):
+        # Automatically links the new medicine to the logged-in user
         serializer.save(user=self.request.user)

@@ -18,6 +18,8 @@ class _SignupViewState extends ConsumerState<SignupView> {
   final _emailCtr = TextEditingController();
   final _passwordCtr = TextEditingController();
 
+  bool _obscurePassword = true;
+
   int age = 18;
   String gender = 'male';
   int height = 160; // cm
@@ -75,8 +77,20 @@ class _SignupViewState extends ConsumerState<SignupView> {
               /// PASSWORD
               TextFormField(
                 controller: _passwordCtr,
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
                 validator: (v) =>
                     v != null && v.length >= 6 ? null : 'Min 6 characters',
               ),
