@@ -1,19 +1,21 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart';
 import '../../models/medicine_model.dart';
 import '../../core/secure_storage.dart'; // Import your secure storage class
+import '../../viewmodels/providers.dart'; 
 
-class MedHistoryScreen extends StatefulWidget {
+class MedHistoryScreen extends ConsumerStatefulWidget {
   const MedHistoryScreen({super.key});
 
   @override
-  State<MedHistoryScreen> createState() => _MedHistoryScreenState();
+  ConsumerState<MedHistoryScreen> createState() => _MedHistoryScreenState();
 }
 
-class _MedHistoryScreenState extends State<MedHistoryScreen> {
+class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   bool _isAdding = false; // Tracks API loading state
   final List<MedicineHistory> medicines = [];
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
@@ -101,6 +103,7 @@ class _MedHistoryScreenState extends State<MedHistoryScreen> {
       );
 
       if (response.statusCode == 201) {
+        ref.invalidate(medicinesProvider);
         final newMed = MedicineHistory.fromJson(response.data);
         
         // 2. UI Update: Add to the top of the list immediately
@@ -130,6 +133,8 @@ class _MedHistoryScreenState extends State<MedHistoryScreen> {
         options: Options(headers: {"Authorization": "Bearer $token"}),
       );
       if (response.statusCode == 204) {
+        ref.invalidate(medicinesProvider);
+        
         final removed = medicines.removeAt(index);
         _listKey.currentState?.removeItem(
           index,

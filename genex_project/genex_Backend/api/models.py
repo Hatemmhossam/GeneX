@@ -39,3 +39,15 @@ class Medicine(models.Model):
 
     def __str__(self):
         return f"{self.name} for {self.user.username}"
+
+
+class SymptomReport(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="symptoms")
+    symptom_name = models.CharField(max_length=100)
+    severity = models.IntegerField()  # 0 to 10 scale
+    frequency = models.CharField(max_length=50) 
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.symptom_name} ({self.severity}/10)"

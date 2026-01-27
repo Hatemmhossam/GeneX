@@ -5,6 +5,7 @@ import 'profile_view.dart';
 import 'upload_screen.dart';
 import 'med_history_screen.dart';
 import 'twin_simulation_screen.dart';
+import 'symptoms_screen.dart'; // 1. IMPORT YOUR NEW FILE
 
 class ResponsiveDashboard extends ConsumerStatefulWidget {
   const ResponsiveDashboard({super.key});
@@ -20,6 +21,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
     const DashboardOverview(), 
     const ProfileScreen(),
     const MedHistoryScreen(),
+    const SymptomReportScreen(), 
     const UploadScreen(),
     const TwinSimulationScreen(),
   ];
@@ -70,6 +72,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
                 NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Overview')),
                 NavigationRailDestination(icon: Icon(Icons.person), label: Text('Profile')),
                 NavigationRailDestination(icon: Icon(Icons.medication), label: Text('History')),
+                NavigationRailDestination(icon: Icon(Icons.sick), label: Text('Symptoms')), 
                 NavigationRailDestination(icon: Icon(Icons.upload_file), label: Text('Upload')),
                 NavigationRailDestination(icon: Icon(Icons.biotech), label: Text('Simulation')),
               ],
@@ -94,13 +97,14 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
         ],
       ),
       bottomNavigationBar: !isDesktop ? BottomNavigationBar(
-        currentIndex: _selectedIndex > 2 ? 0 : _selectedIndex,
+        currentIndex: _selectedIndex > 3 ? 0 : _selectedIndex,
         type: BottomNavigationBarType.fixed,
         onTap: (index) => setState(() => _selectedIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           BottomNavigationBarItem(icon: Icon(Icons.medication), label: 'Meds'),
+          BottomNavigationBarItem(icon: Icon(Icons.sick), label: 'Symptoms'), 
         ],
       ) : null,
     );
@@ -116,7 +120,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
       child: Row(
         children: [
           const Text("GeneX Medical Portal", 
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal)),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
           const Spacer(),
           // KEEPING THIS ONE: The logout button in the top right
           IconButton(
@@ -135,13 +139,15 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
   }
 } // <--- End of State class
 
-// --- DashboardOverview is now outside to fix the red error ---
 
-class DashboardOverview extends StatelessWidget {
+class DashboardOverview extends ConsumerWidget { // Switched to ConsumerWidget
   const DashboardOverview({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the medicine provider
+    final medsAsync = ref.watch(medicinesProvider);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -158,7 +164,19 @@ class DashboardOverview extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             children: [
               _medicalWidget("Vitals Status", "Stable", Icons.favorite, Colors.red),
-              _medicalWidget("Active Meds", "4 Prescribed", Icons.medication, Colors.blue),
+              
+              // Use .when to handle Loading, Error, and Data states
+              medsAsync.when(
+                data: (meds) => _medicalWidget(
+                  "Active Meds", 
+                  "${meds.length} Prescribed", 
+                  Icons.medication, 
+                  Colors.blue
+                ),
+                loading: () => _medicalWidget("Active Meds", "Loading...", Icons.medication, Colors.grey),
+                error: (err, stack) => _medicalWidget("Active Meds", "Error", Icons.error, Colors.orange),
+              ),
+              
               _medicalWidget("Next Simulation", "Scheduled: Jan 30", Icons.science, Colors.purple),
             ],
           ),
@@ -189,3 +207,59 @@ class DashboardOverview extends StatelessWidget {
     );
   }
 }
+
+
+// --- DashboardOverview is now outside to fix the red error ---
+
+// class DashboardOverview extends StatelessWidget {
+//   const DashboardOverview({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return SingleChildScrollView(
+//       padding: const EdgeInsets.all(24),
+//       child: Column(
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         children: [
+//           const Text("System Overview", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+//           const SizedBox(height: 20),
+//           GridView.count(
+//             crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+//             shrinkWrap: true,
+//             crossAxisSpacing: 20,
+//             mainAxisSpacing: 20,
+//             childAspectRatio: 1.5,
+//             physics: const NeverScrollableScrollPhysics(),
+//             children: [
+//               _medicalWidget("Vitals Status", "Stable", Icons.favorite, Colors.red),
+//               _medicalWidget("Active Meds", "4 Prescribed", Icons.medication, Colors.blue),
+//               _medicalWidget("Next Simulation", "Scheduled: Jan 30", Icons.science, Colors.purple),
+//             ],
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _medicalWidget(String title, String value, IconData icon, Color color) {
+//     return Container(
+//       padding: const EdgeInsets.all(20),
+//       decoration: BoxDecoration(
+//         color: Colors.white,
+//         borderRadius: BorderRadius.circular(12),
+//         boxShadow: [
+//           BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+//         ],
+//       ),
+//       child: Column(
+//         mainAxisAlignment: MainAxisAlignment.center,
+//         children: [
+//           Icon(icon, color: color, size: 40),
+//           const SizedBox(height: 10),
+//           Text(title, style: const TextStyle(color: Colors.grey)),
+//           Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+//         ],
+//       ),
+//     );
+//   }
+// }

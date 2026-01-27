@@ -6,8 +6,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import User, Medicine
-from .serializers import UserSerializer, MedicineSerializer
+from .models import User, Medicine, SymptomReport
+from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
 
 # --- Helper: JWT Token Generation ---
 def get_tokens_for_user(user):
@@ -128,4 +128,21 @@ class MedicineViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # Automatically links the new medicine to the logged-in user
+        serializer.save(user=self.request.user)
+
+
+class SymptomViewSet(viewsets.ModelViewSet):
+    """
+    Handles List and Create for Patient Symptoms.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = SymptomReportSerializer
+
+    def get_queryset(self):
+        # Filter reports so patients only see their OWN logs
+        return SymptomReport.objects.filter(user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        # Link the report to the logged-in user automatically
         serializer.save(user=self.request.user)
