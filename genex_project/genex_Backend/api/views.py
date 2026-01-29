@@ -68,17 +68,17 @@ def signup(request):
 @permission_classes([AllowAny])
 def signin(request):
     """Authenticates user and returns JWT token."""
-    email = request.data.get('email')
+    username = request.data.get('username')
     password = request.data.get('password')
 
-    if not email or not password:
+    if not username or not password:
         return Response(
-            {"error": "Email and password are required"},
+            {"error": "Username and password are required"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     try:
-        user = User.objects.get(username=email)
+        user = User.objects.get(username=username)
     except User.DoesNotExist:
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -90,7 +90,6 @@ def signin(request):
         "token": token,
         "user": UserSerializer(user).data
     }, status=status.HTTP_200_OK)
-
 
 # --- Profile Views ---
 

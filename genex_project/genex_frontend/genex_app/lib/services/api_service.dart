@@ -25,6 +25,9 @@ class ApiService {
       {Map<String, dynamic>? headers}) {
     return _dio.post(path, data: data, options: Options(headers: headers));
   }
+Future<Response> get(String path, {Map<String, dynamic>? headers}) {
+  return _dio.get(path, options: Options(headers: headers));
+}
 
   // If needed later: set auth header
   void setAuthToken(String token) {

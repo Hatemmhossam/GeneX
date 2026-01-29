@@ -17,14 +17,29 @@ class AuthViewModel extends StateNotifier<AuthState> {
   }
 
   Future<void> _loadToken() async {
-    final token = await SecureStorage.readToken();
-    if (token != null) {
-      // Optionally verify token with backend; for now assume authenticated
-      api.setAuthToken(token);
-      // you might fetch user profile here
-      state = state.copyWith(status: AuthStatus.authenticated, token: token);
+  final token = await SecureStorage.readToken();
+  if (token != null) {
+    api.setAuthToken(token);
+
+    try {
+      final user = await repository.getProfile();
+
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        token: token,
+        user: user,
+      );
+
+      debugPrint('Auto-login. Role: ${user.role}');
+    } catch (_) {
+      // token invalid/expired
+      await SecureStorage.removeToken();
+      api.removeAuthToken();
+      state = AuthState.initial();
     }
   }
+}
+
 
   Future<void> signup({
     required String name,
@@ -66,24 +81,32 @@ class AuthViewModel extends StateNotifier<AuthState> {
   }
 
   Future<void> login({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      state = state.copyWith(status: AuthStatus.authenticating, errorMessage: null);
-      final response = await repository.login(email: email, password: password);
-      await SecureStorage.saveToken(response.token);
-      api.setAuthToken(response.token);
-      state = state.copyWith(
-        status: AuthStatus.authenticated,
-        user: response.user,
-        token: response.token,
-      );
-    } catch (e) {
-      state = state.copyWith(
-          status: AuthStatus.error, errorMessage: _extractError(e));
-    }
+  required String username,
+  required String password,
+}) async {
+  try {
+    state = state.copyWith(status: AuthStatus.authenticating, errorMessage: null);
+    final response = await repository.login(
+      username: username,
+      password: password,
+    );
+
+    await SecureStorage.saveToken(response.token);
+    api.setAuthToken(response.token);
+
+    state = state.copyWith(
+      status: AuthStatus.authenticated,
+      user: response.user,
+      token: response.token,
+    );
+  } catch (e) {
+    state = state.copyWith(
+      status: AuthStatus.error,
+      errorMessage: _extractError(e),
+    );
   }
+}
+
 
   Future<void> logout() async {
     await SecureStorage.removeToken();

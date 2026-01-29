@@ -7,6 +7,8 @@ import 'views/auth/signin_view.dart';
 import 'viewmodels/providers.dart';
 // import 'views/patient/homepage_view.dart'; 
 import 'views/patient/responsive_dashboard.dart';
+import 'views/auth/doctor_dashboard.dart';
+
 void main() {
   runApp(const ProviderScope(child: MyApp()));
 }
@@ -57,6 +59,8 @@ debugShowCheckedModeBanner: false,
         // '/home': (ctx) => const HomeScreen(),
         // Change this line in your routes:
         '/home': (ctx) => const ResponsiveDashboard(),
+        '/doctor': (ctx) => const DoctorDashboard(),
+
       },
     );
   }
