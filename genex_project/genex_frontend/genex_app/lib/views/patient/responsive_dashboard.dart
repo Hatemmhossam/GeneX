@@ -5,6 +5,8 @@ import 'profile_view.dart';
 import 'upload_screen.dart';
 import 'med_history_screen.dart';
 import 'twin_simulation_screen.dart';
+import 'doctor_requests_screen.dart';
+
 
 class ResponsiveDashboard extends ConsumerStatefulWidget {
   const ResponsiveDashboard({super.key});
@@ -22,6 +24,8 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
     const MedHistoryScreen(),
     const UploadScreen(),
     const TwinSimulationScreen(),
+    const DoctorRequestsScreen(),
+
   ];
 
   void _handleLogout() async {
@@ -72,6 +76,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
                 NavigationRailDestination(icon: Icon(Icons.medication), label: Text('History')),
                 NavigationRailDestination(icon: Icon(Icons.upload_file), label: Text('Upload')),
                 NavigationRailDestination(icon: Icon(Icons.biotech), label: Text('Simulation')),
+                NavigationRailDestination(icon: Icon(Icons.person), label: Text('Doctor Requests')),
               ],
               selectedIndex: _selectedIndex,
               onDestinationSelected: (int index) {
@@ -86,7 +91,10 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
               child: Column(
                 children: [
                   _buildHeader(context),
-                  Expanded(child: _pages[_selectedIndex]),
+                 Expanded(
+  child: _pages[_selectedIndex.clamp(0, _pages.length - 1)],
+),
+
                 ],
               ),
             ),
