@@ -1,13 +1,14 @@
 from django.http import JsonResponse
-from rest_framework import status, views, viewsets, permissions
+from django.db.models import Q  # <--- ADD THIS (For search logic)
+from rest_framework import status, views, viewsets, permissions, generics # <--- ADD 'generics'
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import User, Medicine
-from .serializers import UserSerializer, MedicineSerializer
+from .models import User, Medicine, SymptomReport
+from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
 
 # --- Helper: JWT Token Generation ---
 def get_tokens_for_user(user):
@@ -68,17 +69,17 @@ def signup(request):
 @permission_classes([AllowAny])
 def signin(request):
     """Authenticates user and returns JWT token."""
-    email = request.data.get('email')
+    username = request.data.get('username')
     password = request.data.get('password')
 
-    if not email or not password:
+    if not username or not password:
         return Response(
-            {"error": "Email and password are required"},
+            {"error": "Username and password are required"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     try:
-        user = User.objects.get(username=email)
+        user = User.objects.get(username=username)
     except User.DoesNotExist:
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -90,7 +91,6 @@ def signin(request):
         "token": token,
         "user": UserSerializer(user).data
     }, status=status.HTTP_200_OK)
-
 
 # --- Profile Views ---
 
@@ -129,3 +129,48 @@ class MedicineViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Automatically links the new medicine to the logged-in user
         serializer.save(user=self.request.user)
+
+
+class SymptomViewSet(viewsets.ModelViewSet):
+    """
+    Handles List and Create for Patient Symptoms.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = SymptomReportSerializer
+
+    def get_queryset(self):
+        # Filter reports so patients only see their OWN logs
+        return SymptomReport.objects.filter(user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        # Link the report to the logged-in user automatically
+        serializer.save(user=self.request.user)
+
+
+
+        # --- Doctor Views ---
+
+class PatientListView(generics.ListAPIView):
+    """
+    API View to list all patients. 
+    Used in the Doctor Dashboard to search and view patients.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated] # Ideally, restrict this to Doctors only in the future
+    serializer_class = UserSerializer
+
+    def get_queryset(self):
+        # 1. Base Query: Get all users with role 'patient'
+        queryset = User.objects.filter(role='patient')
+
+        # 2. Search Logic: Filter by username, email, or first name if 'search' param exists
+        search_query = self.request.query_params.get('search', None)
+        if search_query:
+            queryset = queryset.filter(
+                Q(username__icontains=search_query) | 
+                Q(email__icontains=search_query) |
+                Q(first_name__icontains=search_query)
+            )
+
+        return queryset

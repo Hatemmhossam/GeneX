@@ -11,12 +11,13 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Controllers to hold and display the medical data
   final nameController = TextEditingController();
-  final ageController = TextEditingController();
-  final genderController = TextEditingController();
-  final weightController = TextEditingController();
-  final heightController = TextEditingController();
+  
+  // State variables to hold dropdown values
+  String selectedGender = 'male';
+  int selectedAge = 18;
+  int selectedHeight = 160;
+  int selectedWeight = 60;
 
   bool isSaving = false;
   bool isFetching = true;
@@ -30,33 +31,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     nameController.dispose();
-    ageController.dispose();
-    genderController.dispose();
-    weightController.dispose();
-    heightController.dispose();
     super.dispose();
   }
 
   Future<void> fetchProfile() async {
-    // Uses the same key as your AuthViewModel
     final token = await SecureStorage.readToken();
-    
     if (token == null) {
-      debugPrint("DEBUG: No token found. Please log in again.");
       if (mounted) setState(() => isFetching = false);
       return;
     }
 
     try {
-      // Using localhost for Chrome/Web and 127.0.0.1 for Desktop/Mobile
       final url = Uri.parse('http://localhost:8000/api/profile/');
-      
       final response = await http.get(
         url,
         headers: {
-          'Authorization': 'Bearer $token', 
+          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
       );
 
@@ -64,19 +55,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final data = json.decode(response.body);
         if (mounted) {
           setState(() {
-            // Mapping Django User model fields to Controllers
-            nameController.text = data['first_name']?.toString() ?? '';
-            genderController.text = data['gender']?.toString() ?? '';
-            ageController.text = data['age']?.toString() ?? '';
-            weightController.text = data['weight']?.toString() ?? '';
-            heightController.text = data['height']?.toString() ?? '';
+            // Read-only name
+            nameController.text = data['first_name']?.toString() ?? data['username'] ?? '';
+            
+            // Dropdown initial values from server (with null safety)
+            selectedGender = data['gender']?.toString().toLowerCase() ?? 'male';
+            selectedAge = data['age'] != null ? (data['age'] as int) : 18;
+            selectedHeight = data['height'] != null ? (data['height'] as num).toInt() : 160;
+            selectedWeight = data['weight'] != null ? (data['weight'] as num).toInt() : 60;
           });
         }
-      } else {
-        debugPrint("DEBUG: Server Error ${response.statusCode}");
       }
     } catch (e) {
-      debugPrint("DEBUG: Fetching failed: $e");
+      debugPrint("Fetch error: $e");
     } finally {
       if (mounted) setState(() => isFetching = false);
     }
@@ -96,11 +87,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'Content-Type': 'application/json',
         },
         body: json.encode({
-          'first_name': nameController.text,
-          'age': int.tryParse(ageController.text),
-          'gender': genderController.text,
-          'weight': double.tryParse(weightController.text),
-          'height': double.tryParse(heightController.text),
+          'age': selectedAge,
+          'gender': selectedGender,
+          'weight': selectedWeight.toDouble(),
+          'height': selectedHeight.toDouble(),
+          // first_name is not sent because it is read-only
         }),
       );
 
@@ -110,7 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } catch (e) {
-      debugPrint("DEBUG: Update failed: $e");
+      debugPrint("Update error: $e");
     } finally {
       if (mounted) setState(() => isSaving = false);
     }
@@ -120,16 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     if (isFetching) {
       return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text("Syncing with Clinical Records...", style: TextStyle(color: Colors.blueGrey)),
-            ],
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -149,26 +131,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0057B7)),
                 ),
                 const SizedBox(height: 24),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    return GridView(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: constraints.maxWidth > 600 ? 2 : 1,
-                        crossAxisSpacing: 20,
-                        mainAxisExtent: 85,
+                
+                // 1. Fixed Name Field (Read Only)
+                _buildReadOnlyField(nameController, 'Full Name', Icons.lock_outline),
+                
+                const SizedBox(height: 20),
+
+                // 2. Interactive Dropdowns
+                LayoutBuilder(builder: (context, constraints) {
+                  return GridView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: constraints.maxWidth > 600 ? 2 : 1,
+                      crossAxisSpacing: 20,
+                      mainAxisExtent: 90,
+                    ),
+                    children: [
+                      // GENDER
+                      _buildDropdown<String>(
+                        label: 'Gender Identity',
+                        icon: Icons.wc_outlined,
+                        value: selectedGender,
+                        items: const ['male', 'female'],
+                        onChanged: (val) => setState(() => selectedGender = val!),
                       ),
-                      children: [
-                        _buildField(nameController, 'Full Name', Icons.person_outline),
-                        _buildField(genderController, 'Gender Identity', Icons.wc_outlined),
-                        _buildField(ageController, 'Current Age', Icons.calendar_today_outlined, isNumber: true),
-                        _buildField(weightController, 'Body Weight (kg)', Icons.monitor_weight_outlined, isNumber: true),
-                        _buildField(heightController, 'Patient Height (cm)', Icons.height_outlined, isNumber: true),
-                      ],
-                    );
-                  },
-                ),
+                      // AGE
+                      _buildDropdown<int>(
+                        label: 'Current Age',
+                        icon: Icons.calendar_today_outlined,
+                        value: selectedAge,
+                        items: List.generate(83, (i) => i + 18),
+                        onChanged: (val) => setState(() => selectedAge = val!),
+                      ),
+                      // HEIGHT
+                      _buildDropdown<int>(
+                        label: 'Patient Height (cm)',
+                        icon: Icons.height_outlined,
+                        value: selectedHeight,
+                        items: List.generate(91, (i) => i + 120),
+                        onChanged: (val) => setState(() => selectedHeight = val!),
+                        suffix: ' cm',
+                      ),
+                      // WEIGHT
+                      _buildDropdown<int>(
+                        label: 'Body Weight (kg)',
+                        icon: Icons.monitor_weight_outlined,
+                        value: selectedWeight,
+                        items: List.generate(141, (i) => i + 30),
+                        onChanged: (val) => setState(() => selectedWeight = val!),
+                        suffix: ' kg',
+                      ),
+                    ],
+                  );
+                }),
+
                 const SizedBox(height: 40),
                 Center(
                   child: ElevatedButton.icon(
@@ -179,7 +196,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: isSaving ? null : saveProfile,
-                    icon: isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_circle_outline),
+                    icon: isSaving 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                      : const Icon(Icons.check_circle_outline),
                     label: Text(isSaving ? 'Saving...' : 'Confirm Update'),
                   ),
                 ),
@@ -191,24 +210,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildField(TextEditingController controller, String label, IconData icon, {bool isNumber = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: const Color(0xFF0057B7)),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true,
-          fillColor: Colors.white,
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-        ),
+  // UI Helper for the Read Only Name
+  Widget _buildReadOnlyField(TextEditingController controller, String label, IconData icon) {
+    return TextField(
+      controller: controller,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.grey),
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        helperText: "Contact Admin to change legal name",
       ),
+    );
+  }
+
+  // UI Helper for Dropdowns
+  Widget _buildDropdown<T>({
+    required String label,
+    required IconData icon,
+    required T value,
+    required List<T> items,
+    required ValueChanged<T?> onChanged,
+    String suffix = "",
+  }) {
+    return DropdownButtonFormField<T>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: const Color(0xFF0057B7)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      items: items.map((item) {
+        return DropdownMenuItem<T>(
+          value: item,
+          child: Text(item.toString() + suffix),
+        );
+      }).toList(),
+      onChanged: onChanged,
     );
   }
 }
