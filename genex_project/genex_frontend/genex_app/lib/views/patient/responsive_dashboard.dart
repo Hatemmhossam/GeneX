@@ -5,6 +5,8 @@ import 'profile_view.dart';
 import 'upload_screen.dart';
 import 'med_history_screen.dart';
 import 'twin_simulation_screen.dart';
+import 'doctor_requests_screen.dart';
+
 import 'symptoms_screen.dart'; // 1. IMPORT YOUR NEW FILE
 import 'about_system_screen.dart';
 
@@ -26,6 +28,8 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
     const SymptomReportScreen(),
     const UploadScreen(),
     const TwinSimulationScreen(),
+    const DoctorRequestsScreen(),
+
     const AboutSystemScreen(),
   ];
 
@@ -76,6 +80,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
               selectedIconTheme: const IconThemeData(color: Colors.teal),
               unselectedIconTheme: const IconThemeData(color: Colors.grey),
               destinations: const [
+               
                 NavigationRailDestination(
                   icon: Icon(Icons.dashboard),
                   label: Text('Overview'),
@@ -100,6 +105,9 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
                   icon: Icon(Icons.biotech),
                   label: Text('Simulation'),
                 ),
+                 NavigationRailDestination(
+                   icon: Icon(Icons.person),
+                   label: Text('Doctor Requests')),
                 NavigationRailDestination(
                   icon: Icon(Icons.info_outline),
                   label: Text('About'),
@@ -118,7 +126,10 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
               child: Column(
                 children: [
                   _buildHeader(context),
-                  Expanded(child: _pages[_selectedIndex]),
+                 Expanded(
+  child: _pages[_selectedIndex.clamp(0, _pages.length - 1)],
+),
+
                 ],
               ),
             ),
