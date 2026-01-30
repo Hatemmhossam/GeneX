@@ -14,14 +14,14 @@ class SigninView extends ConsumerStatefulWidget {
 
 class _SigninViewState extends ConsumerState<SigninView> {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtr = TextEditingController();
+  final _usernameCtr = TextEditingController();
   final _passwordCtr = TextEditingController();
 
   bool _obscurePassword = true; 
 
   @override
   void dispose() {
-    _emailCtr.dispose();
+    _usernameCtr.dispose();
     _passwordCtr.dispose();
     super.dispose();
   }
@@ -32,15 +32,40 @@ class _SigninViewState extends ConsumerState<SigninView> {
     final authVM = ref.read(authViewModelProvider.notifier);
 
     // Listen for auth state changes
-    ref.listen<AuthState>(authViewModelProvider, (previous, next) {
-      if (next.status == AuthStatus.authenticated) {
-        // Token is saved and ApiService headers updated in AuthViewModel
-        Navigator.of(context).pushReplacementNamed('/home');
-      } else if (next.status == AuthStatus.error && next.errorMessage != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(next.errorMessage!)));
-      }
-    });
+  ref.listen<AuthState>(authViewModelProvider, (previous, next) {
+  if (next.status == AuthStatus.authenticated) {
+    final role = next.role; // comes from UserModel
+
+    if (role == 'patient') {
+      Navigator.of(context).pushReplacementNamed('/home');
+    } else if (role == 'doctor') {
+      Navigator.of(context).pushReplacementNamed('/doctor');
+    } else {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Access denied'),
+          content: Text(
+            role == null || role.isEmpty
+                ? 'Your account has no role assigned.'
+                : 'Your role "$role" is not allowed to access this app.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  } else if (next.status == AuthStatus.error && next.errorMessage != null) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+  }
+});
+
+
 
     return Scaffold(
       appBar: AppBar(title: Text('Sign In')),
@@ -51,10 +76,10 @@ class _SigninViewState extends ConsumerState<SigninView> {
           child: ListView(
             children: [
               TextFormField(
-                controller: _emailCtr,
-                decoration: InputDecoration(labelText: 'Email'),
+                controller: _usernameCtr,
+                decoration: InputDecoration(labelText: 'Username'),
                 validator: (v) =>
-                    v != null && v.contains('@') ? null : 'Enter valid email',
+                    v != null && v.contains('@') ? null : 'Enter valid username',
               ),
               TextFormField(
                 controller: _passwordCtr,
@@ -82,7 +107,7 @@ class _SigninViewState extends ConsumerState<SigninView> {
                     // Login with email/password
                     // AuthViewModel stores token and sets headers automatically
                     authVM.login(
-                      email: _emailCtr.text.trim(),
+                      username: _usernameCtr.text.trim(),
                       password: _passwordCtr.text,
                     );
                   }
