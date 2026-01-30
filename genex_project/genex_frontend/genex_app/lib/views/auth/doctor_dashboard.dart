@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../viewmodels/providers.dart';
-
+import '../doctor/patients_screen.dart';
 class DoctorDashboard extends ConsumerWidget {
   const DoctorDashboard({super.key});
 
@@ -32,11 +32,12 @@ class DoctorDashboard extends ConsumerWidget {
               child: ListTile(
                 leading: const Icon(Icons.people),
                 title: const Text('Patients'),
-                subtitle: const Text('View assigned patients (coming soon)'),
+                subtitle: const Text('View assigned patients'),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Patients screen not implemented yet')),
-                  );
+                 Navigator.push(
+                    context,
+                     MaterialPageRoute(builder: (context) => const PatientsScreen()),
+                 );
                 },
               ),
             ),
@@ -64,6 +65,8 @@ class DoctorDashboard extends ConsumerWidget {
                 },
               ),
             ),
+            // inside DoctorDashboard.dart
+
           ],
         ),
       ),
