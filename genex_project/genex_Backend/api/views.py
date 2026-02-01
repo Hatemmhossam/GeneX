@@ -174,3 +174,25 @@ class PatientListView(generics.ListAPIView):
             )
 
         return queryset
+    from rest_framework import generics
+from .models import User
+from .serializers import PatientSerializer
+
+class PatientSearchView(generics.ListAPIView):
+    serializer_class = PatientSerializer
+
+    def get_queryset(self):
+        # 1. Start with all users
+        queryset = User.objects.all()
+        
+        # 2. Filter ONLY for patients
+        # Ensure your model actually has a field named 'role'
+        queryset = queryset.filter(role='patient')
+
+        # 3. Filter by the search query from the URL (e.g. ?query=john)
+        search_query = self.request.query_params.get('query', None)
+        if search_query:
+            # Filters users where username matches the query (case-insensitive)
+            queryset = queryset.filter(username__icontains=search_query)
+            
+        return queryset

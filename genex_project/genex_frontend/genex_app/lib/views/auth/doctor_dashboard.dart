@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../viewmodels/providers.dart';
-import '../doctor/patients_screen.dart';
+import '../doctor/user_search_view.dart';
+
 class DoctorDashboard extends ConsumerWidget {
   const DoctorDashboard({super.key});
 
@@ -36,7 +37,7 @@ class DoctorDashboard extends ConsumerWidget {
                 onTap: () {
                  Navigator.push(
                     context,
-                     MaterialPageRoute(builder: (context) => const PatientsScreen()),
+                     MaterialPageRoute(builder: (context) => const UserSearchView()),
                  );
                 },
               ),
