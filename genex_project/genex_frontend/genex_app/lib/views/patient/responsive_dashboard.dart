@@ -29,7 +29,6 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
     const UploadScreen(),
     const TwinSimulationScreen(),
     const DoctorRequestsScreen(),
-
     const AboutSystemScreen(),
   ];
 

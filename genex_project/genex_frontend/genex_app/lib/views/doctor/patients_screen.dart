@@ -83,11 +83,11 @@ class _PatientsScreenState extends ConsumerState<PatientsScreen> {
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          child: Text(patient.username.isNotEmpty 
-                              ? patient.username[0].toUpperCase() 
+                          child: Text(patient.email.isNotEmpty 
+                              ? patient.email[0].toUpperCase() 
                               : '?'),
                         ),
-                        title: Text(patient.username), 
+                        title: Text(patient.email), 
                         subtitle: Text(patient.email ?? 'No email'),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () {

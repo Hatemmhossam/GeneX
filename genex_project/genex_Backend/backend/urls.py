@@ -24,5 +24,8 @@ def home(request):
 urlpatterns = [
     path('', home),  # handles /
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls'))
+    path('api/', include('api.urls')),
+    path('', include('ml_api.urls')), # Connect your app's URLs here
+        
 ]
+
