@@ -51,3 +51,13 @@ class SymptomReport(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.symptom_name} ({self.severity}/10)"
+    
+class DoctorPatient(models.Model):
+    # These match your screenshot columns
+    doctor_username = models.CharField(max_length=150)
+    patient_username = models.CharField(max_length=150)
+    status = models.CharField(max_length=20, default='pending') # pending, confirmed, declined
+    appointment_date = models.CharField(max_length=50, null=True, blank=True) # Text column
+
+    def __str__(self):
+        return f"{self.doctor_username} -> {self.patient_username} ({self.status})"

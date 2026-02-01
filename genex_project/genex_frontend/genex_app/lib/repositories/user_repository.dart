@@ -20,4 +20,8 @@ class UserRepository {
   Future<List<UserModel>> searchUsersByUsername(String username) async {
     return _apiService.searchUsersByUsername(username);
   }
+
+  Future<bool> addPatient(String patientUsername) async {
+    return _apiService.addPatient(patientUsername);
+  }
 } 

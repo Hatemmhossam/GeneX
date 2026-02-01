@@ -210,4 +210,21 @@ class ApiService {
 
     return [];
   }
+
+  /// Sends a request to add a patient
+  Future<bool> addPatient(String patientUsername) async {
+    try {
+      await _refreshAuthHeader();
+
+      final response = await _dio.post(
+        'send-request/', 
+        data: {'patient_username': patientUsername},
+      );
+
+      return response.statusCode == 201; 
+    } on DioException catch (e) {
+      // You can log error here
+      return false;
+    }
+  }
 }

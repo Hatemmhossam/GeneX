@@ -39,7 +39,15 @@ class UserSearchViewModel extends StateNotifier<UserSearchState> {
       );
     }
   }
-
+// Add this method to your existing UserSearchViewModel class
+  Future<bool> sendAddRequest(String patientUsername) async {
+    try {
+      final success = await repo.addPatient(patientUsername);
+      return success;
+    } catch (e) {
+      return false;
+    }
+  }
   void clear() {
     state = UserSearchState.idle();
   }

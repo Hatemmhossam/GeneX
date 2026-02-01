@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../viewmodels/providers.dart';
 import '../../viewmodels/user_search_state.dart';
-import '../../models/user_model.dart'; // <--- Add this import
+import '../../models/user_model.dart';
+
 class UserSearchView extends ConsumerStatefulWidget {
   const UserSearchView({super.key});
 
@@ -16,7 +17,7 @@ class _UserSearchViewState extends ConsumerState<UserSearchView> {
   Timer? _debounce;
 
   // Set to true to avoid hitting the API on every single keystroke
-  final bool _useDebounce = true; 
+  final bool _useDebounce = true;
 
   @override
   void dispose() {
@@ -48,7 +49,7 @@ class _UserSearchViewState extends ConsumerState<UserSearchView> {
     final vm = ref.read(userSearchViewModelProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Search Patients')), // Updated Title
+      appBar: AppBar(title: const Text('Search Patients')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -56,13 +57,11 @@ class _UserSearchViewState extends ConsumerState<UserSearchView> {
             TextField(
               controller: _ctr,
               onChanged: (v) {
-                // setState not strictly needed if only using Riverpod, 
-                // but useful for the clear button visibility
-                setState(() {}); 
+                setState(() {});
                 _onChanged(v);
               },
               decoration: InputDecoration(
-                labelText: 'Search by patient username', // Updated Label
+                labelText: 'Search by patient username',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _ctr.text.isEmpty
                     ? null
@@ -120,9 +119,8 @@ class _UserSearchViewState extends ConsumerState<UserSearchView> {
                       separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (_, i) {
                         final u = state.results[i];
-                        
-                        // ✅ FIX: Correctly map data from UserModel
-                        final username = u.username; 
+
+                        final username = u.username;
                         final email = u.email;
                         final role = u.role;
 
@@ -136,16 +134,68 @@ class _UserSearchViewState extends ConsumerState<UserSearchView> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(email),
-                              if (role != null) 
+                              if (role != null)
                                 Text(
                                   role.toUpperCase(),
-                                  style: const TextStyle(fontSize: 10, color: Colors.blueGrey),
+                                  style: const TextStyle(
+                                      fontSize: 10, color: Colors.blueGrey),
                                 ),
                             ],
                           ),
                           onTap: () {
-                            // Add navigation to patient details here
-                            // Navigator.pushNamed(context, '/patient_details', arguments: u);
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Add Patient?'),
+                                content: Text(
+                                    'Do you want to send a add request to $username?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      Navigator.pop(ctx); // Close dialog
+
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                            content: Text('Sending request...')),
+                                      );
+
+                                      // Call the method we added in the previous step
+                                      final success =
+                                          await vm.sendAddRequest(username);
+
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .hideCurrentSnackBar();
+                                        if (success) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                  'Request sent to $username!'),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        } else {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                  'Failed. Request might already exist.'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                    child: const Text('Add'),
+                                  ),
+                                ],
+                              ),
+                            );
                           },
                         );
                       },
