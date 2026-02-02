@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <--- ADDED IMPORT
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../viewmodels/providers.dart';
 import '../doctor/user_search_view.dart';
+import '../../viewmodels/auth_viewmodel.dart'; // Import to use AuthViewModel type
 
 class DoctorDashboard extends ConsumerStatefulWidget {
   const DoctorDashboard({super.key});
@@ -12,7 +13,7 @@ class DoctorDashboard extends ConsumerStatefulWidget {
 }
 
 class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
-  bool _isLoading = true; // Shows loading spinner initially
+  bool _isLoading = true;
   bool _isAuthorized = false;
 
   @override
@@ -21,19 +22,16 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
     _checkAccess();
   }
 
-  // --- SECURITY CHECK ---
   Future<void> _checkAccess() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     final role = prefs.getString('role');
 
-    // If no token or role is not doctor, redirect to Sign In
     if (token == null || role != 'doctor') {
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/signin', (r) => false);
       }
     } else {
-      // Access Granted
       if (mounted) {
         setState(() {
           _isAuthorized = true;
@@ -43,21 +41,74 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
     }
   }
 
+  // --- 🔴 NEW LOGOUT DIALOG FUNCTION ---
+  Future<void> _showLogoutConfirmation(BuildContext context, AuthViewModel authVM) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap a button to close
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20), // Rounded corners like image
+          ),
+          title: const Text(
+            'Confirm Logout',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'Are you sure you want to log out of the GeneX portal?',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: <Widget>[
+            // CANCEL BUTTON
+            TextButton(
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Just close the dialog
+              },
+            ),
+            // LOGOUT BUTTON (Red Style)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent, // Red background
+                foregroundColor: Colors.white, // White text
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              onPressed: () async {
+                Navigator.of(context).pop(); // 1. Close Dialog
+                
+                // 2. Perform Logout Logic
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                await authVM.logout();
+
+                if (context.mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil('/signin', (r) => false);
+                }
+              },
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 1. Show Loader while checking
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // 2. If not authorized, return empty (redirect happens in _checkAccess)
     if (!_isAuthorized) {
       return const SizedBox.shrink();
     }
 
-    // 3. Main Dashboard UI
     final authVM = ref.read(authViewModelProvider.notifier);
 
     return Scaffold(
@@ -65,16 +116,11 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
         title: const Text('Doctor Dashboard'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              // Clear session locally and in ViewModel
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.clear(); 
-              await authVM.logout();
-              
-              if (context.mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil('/signin', (r) => false);
-              }
+            icon: const Icon(Icons.logout), // The exit icon
+            color: Colors.redAccent, // Make the icon red to stand out (optional)
+            onPressed: () {
+              // 🔴 Trigger the custom dialog instead of direct logout
+              _showLogoutConfirmation(context, authVM);
             },
           ),
         ],
