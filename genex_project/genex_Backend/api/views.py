@@ -1,14 +1,21 @@
 from django.http import JsonResponse
-from django.db.models import Q  # <--- ADD THIS (For search logic)
-from rest_framework import status, views, viewsets, permissions, generics # <--- ADD 'generics'
+from django.db.models import Q 
+from rest_framework import status, views, viewsets, permissions, generics 
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import User, Medicine, SymptomReport
-from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
+# ✅ UPDATED IMPORTS: Added DoctorPatient and new serializers
+from .models import User, Medicine, SymptomReport, DoctorPatient
+from .serializers import (
+    UserSerializer, 
+    MedicineSerializer, 
+    SymptomReportSerializer, 
+    PatientSerializer, 
+    DoctorPatientSerializer
+)
 
 # --- Helper: JWT Token Generation ---
 def get_tokens_for_user(user):
@@ -71,7 +78,8 @@ def signin(request):
     """Authenticates user and returns JWT token."""
     username = request.data.get('username')
     password = request.data.get('password')
-
+    print(f"📥 Input Username: '{username}'")
+    print(f"📥 Input Password: '{password}'")   
     if not username or not password:
         return Response(
             {"error": "Username and password are required"},
@@ -80,17 +88,22 @@ def signin(request):
 
     try:
         user = User.objects.get(username=username)
+        print(f"✅ User Found: ID={user.id}, Role={user.role}")
     except User.DoesNotExist:
+        print(f"❌ User NOT Found. Are you sure '{username}' is correct?")
+        print("💡 Hint: Check your database to see if the username is an email address.")
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     if not user.check_password(password):
+        print("❌ Password Mismatch. The password entered does not match the hashed password in DB.")
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
+    print("✅ Login Successful! Generating token...")
     token = get_tokens_for_user(user)
     return Response({
         "token": token,
         "user": UserSerializer(user).data
     }, status=status.HTTP_200_OK)
+
 
 # --- Profile Views ---
 
@@ -148,23 +161,76 @@ class SymptomViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+# --- Doctor / Patient Interaction Views ---
 
-        # --- Doctor Views ---
-
-class PatientListView(generics.ListAPIView):
+class PatientSearchView(generics.ListAPIView):
     """
-    API View to list all patients. 
-    Used in the Doctor Dashboard to search and view patients.
+    API View specifically for searching patients.
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated] # Ideally, restrict this to Doctors only in the future
+    permission_classes = [IsAuthenticated] 
+    serializer_class = PatientSerializer
+
+    def get_queryset(self):
+        # 1. Start with all users
+        queryset = User.objects.all()
+        
+        # 2. Filter ONLY for patients
+        queryset = queryset.filter(role='patient')
+
+        # 3. Filter by the search query from the URL (e.g. ?query=john)
+        search_query = self.request.query_params.get('query', None)
+        if search_query:
+            queryset = queryset.filter(username__icontains=search_query)
+            
+        return queryset
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_patient_request(request):
+    print("--- NEW REQUEST RECEIVED ---") # Debug 1
+    doctor_username = request.user.username
+    patient_username = request.data.get('patient_username')
+
+    print(f"Doctor: {doctor_username}, Patient: {patient_username}") # Debug 2
+
+    if not patient_username:
+        print("Error: No patient username provided")
+        return Response({'error': 'Patient username is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if request already exists
+    existing = DoctorPatient.objects.filter(
+        doctor_username=doctor_username, 
+        patient_username=patient_username
+    ).exists()
+
+    if existing:
+        print("Error: Request already exists in database")
+        return Response({'message': 'Request already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+    data = {
+        'doctor_username': doctor_username,
+        'patient_username': patient_username,
+        'status': 'pending',
+        'appointment_date': 'TBD'
+    }
+    
+    serializer = DoctorPatientSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        print("SUCCESS: Data saved to database!") # Debug 3
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    print(f"VALIDATION ERROR: {serializer.errors}") # Debug 4
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# (Optional: Kept for backward compatibility if you used it before)
+class PatientListView(generics.ListAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
 
     def get_queryset(self):
-        # 1. Base Query: Get all users with role 'patient'
         queryset = User.objects.filter(role='patient')
-
-        # 2. Search Logic: Filter by username, email, or first name if 'search' param exists
         search_query = self.request.query_params.get('search', None)
         if search_query:
             queryset = queryset.filter(
@@ -172,5 +238,4 @@ class PatientListView(generics.ListAPIView):
                 Q(email__icontains=search_query) |
                 Q(first_name__icontains=search_query)
             )
-
         return queryset
