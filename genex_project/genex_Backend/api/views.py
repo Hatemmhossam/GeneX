@@ -78,7 +78,8 @@ def signin(request):
     """Authenticates user and returns JWT token."""
     username = request.data.get('username')
     password = request.data.get('password')
-
+    print(f"📥 Input Username: '{username}'")
+    print(f"📥 Input Password: '{password}'")   
     if not username or not password:
         return Response(
             {"error": "Username and password are required"},
@@ -87,12 +88,16 @@ def signin(request):
 
     try:
         user = User.objects.get(username=username)
+        print(f"✅ User Found: ID={user.id}, Role={user.role}")
     except User.DoesNotExist:
+        print(f"❌ User NOT Found. Are you sure '{username}' is correct?")
+        print("💡 Hint: Check your database to see if the username is an email address.")
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     if not user.check_password(password):
+        print("❌ Password Mismatch. The password entered does not match the hashed password in DB.")
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
+    print("✅ Login Successful! Generating token...")
     token = get_tokens_for_user(user)
     return Response({
         "token": token,
