@@ -24,7 +24,8 @@ class UserModel {
   final String id;
   final String displayName; // A helper for the UI
   final String email;
-  final String role;
+  final String username; // This was missing
+  final String? role;
   final int? age;
   final double? weight;
   final double? height;
@@ -34,6 +35,7 @@ class UserModel {
     required this.id,
     required this.displayName,
     required this.email,
+    required this.username,
     required this.role,
     this.age,
     this.weight,
@@ -51,6 +53,7 @@ class UserModel {
       id: json['id'].toString(),
       displayName: nameToDisplay,
       email: json['email'] ?? '',
+      username: json['username'] ?? '',
       role: json['role'] ?? 'patient',
       age: json['age'] as int?,
       weight: (json['weight'] as num?)?.toDouble(), 
