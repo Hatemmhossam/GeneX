@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-xajaj-mhf!f8+%4!)9a5-ssk8#a+r=k0wwer*$w5a9llxi=ox8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -45,7 +45,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'api',
     'django_extensions',
-
+    'ml_api',
    
 ]
 REST_FRAMEWORK = {
