@@ -1,7 +1,6 @@
-// file: lib/upload_screen.dart
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Required for FilteringTextInputFormatter
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
@@ -17,12 +16,14 @@ class UploadScreen extends StatefulWidget {
 class _UploadScreenState extends State<UploadScreen> {
   UploadType _selectedType = UploadType.vcf;
   String? selectedFileName;
+  
+  // Key for Form Validation
+  final _formKey = GlobalKey<FormState>();
 
-  // --- 1. NEW: Age and Gender Controllers (Required by Model) ---
+  // --- Controllers ---
   final _ageController = TextEditingController();
-  String _selectedGender = "Female"; // Default value
+  String _selectedGender = "Female"; 
 
-  // --- Existing Controllers ---
   final _esrController = TextEditingController();
   final _crpController = TextEditingController();
   final _antiCcpController = TextEditingController();
@@ -30,7 +31,6 @@ class _UploadScreenState extends State<UploadScreen> {
   final _c3Controller = TextEditingController();
   final _c4Controller = TextEditingController();
 
-  // Positive/Negative test values (true=Positive, false=Negative)
   final Map<String, bool> _pnValues = {
     "ANA": false,
     "Anti-Sm": false,
@@ -59,11 +59,14 @@ class _UploadScreenState extends State<UploadScreen> {
     }
   }
 
-  // --- 2. NEW: Function to Send Data to Python Backend ---
   Future<void> sendTestsToBackend() async {
-    // Android Emulator uses 10.0.2.2. If on real device, use your PC's local IP (e.g., 192.168.1.5)
-final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the body. We send numeric values and booleans.
-    // The backend will handle converting booleans to "Positive"/"Negative" strings.
+    // TRIGGER VALIDATION: If the form is not valid, stop here.
+    if (!_formKey.currentState!.validate()) {
+      _showErrorSnackBar("Please fix the errors in the form.");
+      return;
+    }
+
+    final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');
     final Map<String, dynamic> requestBody = {
       "Age": int.tryParse(_ageController.text) ?? 0,
       "Gender": _selectedGender,
@@ -73,7 +76,6 @@ final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the b
       "Anti_CCP": double.tryParse(_antiCcpController.text),
       "C3": double.tryParse(_c3Controller.text),
       "C4": double.tryParse(_c4Controller.text),
-      // Flatten the map into individual keys
       "ANA": _pnValues["ANA"],
       "Anti_Sm": _pnValues["Anti-Sm"],
       "Anti_Ro": _pnValues["Anti-Ro"],
@@ -83,7 +85,6 @@ final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the b
     };
 
     try {
-      // Show loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -96,8 +97,7 @@ final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the b
         body: jsonEncode(requestBody),
       );
 
-      // Remove loading indicator
-      Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -110,10 +110,8 @@ final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the b
         _showErrorSnackBar("Server Error: ${response.statusCode}");
       }
     } catch (e) {
-      // Remove loading indicator if error occurs
       if (mounted && Navigator.canPop(context)) Navigator.of(context).pop();
-      _showErrorSnackBar("Connection Failed: Make sure Python server is running.");
-      print("Error: $e");
+      _showErrorSnackBar("Connection Failed: Check if Python server is running.");
     }
   }
 
@@ -165,122 +163,119 @@ final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the b
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Choice box (dropdown)
-                DropdownButtonFormField<UploadType>(
-                  value: _selectedType,
-                  decoration: const InputDecoration(
-                    labelText: "Choose upload type",
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: UploadType.vcf, child: Text("VCF")),
-                    DropdownMenuItem(value: UploadType.geneExpression, child: Text("Gene Expression")),
-                    DropdownMenuItem(value: UploadType.tests, child: Text("Tests (ML Prediction)")),
-                  ],
-                  onChanged: (val) {
-                    if (val == null) return;
-                    setState(() {
-                      _selectedType = val;
-                      selectedFileName = null;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 18),
-                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-
-                // --- Dynamic UI Sections ---
-                if (_selectedType == UploadType.vcf) ...[
-                  const Text("Please upload your VCF file."),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: pickFile,
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Upload VCF'),
-                  ),
-                  if (selectedFileName != null) ...[
-                    const SizedBox(height: 12),
-                    Text('Uploaded: $selectedFileName'),
-                  ],
-                ] else if (_selectedType == UploadType.geneExpression) ...[
-                  const Text("Please upload your Gene Expression file."),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: pickFile,
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Upload Gene Expression'),
-                  ),
-                  if (selectedFileName != null) ...[
-                    const SizedBox(height: 12),
-                    Text('Uploaded: $selectedFileName'),
-                  ],
-                ] else ...[
-                  // --- TESTS UI (Connected to ML) ---
-                  const Text("Enter patient details and test results."),
-                  const SizedBox(height: 12),
-
-                  // 1. Age and Gender Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedGender,
-                          decoration: const InputDecoration(labelText: "Gender", border: OutlineInputBorder()),
-                          items: ["Male", "Female"]
-                              .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                              .toList(),
-                          onChanged: (v) => setState(() => _selectedGender = v!),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _numberField("Age", _ageController),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // 2. Numeric Tests
-                  _numberField("ESR", _esrController),
-                  const SizedBox(height: 10),
-                  _numberField("CRP", _crpController),
-                  const SizedBox(height: 10),
-                  _numberField("ANTI-CCP", _antiCcpController),
-                  const SizedBox(height: 10),
-                  _numberField("RF", _rfController),
-                  const SizedBox(height: 10),
-                  _numberField("C3", _c3Controller),
-                  const SizedBox(height: 10),
-                  _numberField("C4", _c4Controller),
-
-                  const SizedBox(height: 18),
-                  const Divider(),
-                  const Text("Serology (Positive/Negative)", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-
-                  // 3. Boolean Tests
-                  ..._pnValues.keys.map((label) => _positiveNegativeRow(label)).toList(),
-
-                  const SizedBox(height: 18),
-                  
-                  // 4. Save/Predict Button
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
+          child: Form( // WRAP EVERYTHING IN A FORM
+            key: _formKey,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<UploadType>(
+                    value: _selectedType,
+                    decoration: const InputDecoration(
+                      labelText: "Choose upload type",
+                      border: OutlineInputBorder(),
                     ),
-                    onPressed: sendTestsToBackend, // Calls the backend
-                    child: const Text("Save Tests & Get Analysis", style: TextStyle(fontSize: 16)),
+                    items: const [
+                      DropdownMenuItem(value: UploadType.vcf, child: Text("VCF")),
+                      DropdownMenuItem(value: UploadType.geneExpression, child: Text("Gene Expression")),
+                      DropdownMenuItem(value: UploadType.tests, child: Text("Tests (ML Prediction)")),
+                    ],
+                    onChanged: (val) {
+                      if (val == null) return;
+                      setState(() {
+                        _selectedType = val;
+                        selectedFileName = null;
+                      });
+                    },
                   ),
+
+                  const SizedBox(height: 18),
+                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+
+                  if (_selectedType == UploadType.vcf) ...[
+                    const Text("Please upload your VCF file."),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: pickFile,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Upload VCF'),
+                    ),
+                    if (selectedFileName != null) ...[
+                      const SizedBox(height: 12),
+                      Text('Uploaded: $selectedFileName'),
+                    ],
+                  ] else if (_selectedType == UploadType.geneExpression) ...[
+                    const Text("Please upload your Gene Expression file."),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: pickFile,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Upload Gene Expression'),
+                    ),
+                    if (selectedFileName != null) ...[
+                      const SizedBox(height: 12),
+                      Text('Uploaded: $selectedFileName'),
+                    ],
+                  ] else ...[
+                    const Text("Enter patient details and test results."),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start, // Align for error labels
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedGender,
+                            decoration: const InputDecoration(labelText: "Gender", border: OutlineInputBorder()),
+                            items: ["Male", "Female"]
+                                .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _selectedGender = v!),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _numberField("Age", _ageController, isInt: true),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    _numberField("ESR", _esrController),
+                    const SizedBox(height: 10),
+                    _numberField("CRP", _crpController),
+                    const SizedBox(height: 10),
+                    _numberField("ANTI-CCP", _antiCcpController),
+                    const SizedBox(height: 10),
+                    _numberField("RF", _rfController),
+                    const SizedBox(height: 10),
+                    _numberField("C3", _c3Controller),
+                    const SizedBox(height: 10),
+                    _numberField("C4", _c4Controller),
+
+                    const SizedBox(height: 18),
+                    const Divider(),
+                    const Text("Serology (Positive/Negative)", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+
+                    ..._pnValues.keys.map((label) => _positiveNegativeRow(label)).toList(),
+
+                    const SizedBox(height: 18),
+                    
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: sendTestsToBackend, 
+                      child: const Text("Save Tests & Get Analysis", style: TextStyle(fontSize: 16)),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -288,21 +283,37 @@ final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the b
     );
   }
 
-  Widget _numberField(String label, TextEditingController controller) {
+  // UPDATED NUMBER FIELD WITH VALIDATION
+  Widget _numberField(String label, TextEditingController controller, {bool isInt = false}) {
     return TextFormField(
       controller: controller,
-      keyboardType: TextInputType.number,
+      // Only allows digits and one decimal point
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(isInt ? r'^\d*' : r'^\d*\.?\d*')),
+      ],
+      keyboardType: TextInputType.numberWithOptions(decimal: !isInt),
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
-        isDense: true, 
+        isDense: true,
+        errorStyle: const TextStyle(fontSize: 11),
       ),
+      // THE ERROR GENERATOR
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return "$label is required";
+        }
+        final n = num.tryParse(value);
+        if (n == null) {
+          return "Invalid number";
+        }
+        return null;
+      },
     );
   }
 
   Widget _positiveNegativeRow(String label) {
     final value = _pnValues[label] ?? false;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -315,13 +326,9 @@ final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');    // Prepare the b
               ButtonSegment(value: false, label: Text("Neg")),
             ],
             selected: {value},
-            onSelectionChanged: (set) {
-              setState(() {
-                _pnValues[label] = set.first;
-              });
-            },
+            onSelectionChanged: (set) => setState(() => _pnValues[label] = set.first),
             showSelectedIcon: false,
-            style: ButtonStyle(
+            style: const ButtonStyle(
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
             ),
