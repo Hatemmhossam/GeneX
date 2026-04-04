@@ -6,10 +6,28 @@ import 'auth_viewmodel.dart';
 import 'auth_state.dart';
 import 'package:dio/dio.dart';
 import '../core/secure_storage.dart';
+// lib/viewmodels/providers.dart (add these)
+import '../repositories/user_repository.dart';
+import 'user_search_viewmodel.dart';
+import 'user_search_state.dart';
+
+final userSearchViewModelProvider =
+    StateNotifierProvider<UserSearchViewModel, UserSearchState>((ref) {
+  final repo = ref.read(userRepositoryProvider);
+  return UserSearchViewModel(repo);
+});
+
+
+
+
+
 
 // api service provider (singleton)
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
-
+final userRepositoryProvider = Provider<UserRepository>((ref) {
+  final api = ref.watch(apiServiceProvider);
+  return UserRepository(api); // <--- Injecting the API service here
+});
 // auth repository
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final api = ref.read(apiServiceProvider);
