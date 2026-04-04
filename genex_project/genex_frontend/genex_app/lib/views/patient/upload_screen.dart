@@ -5,6 +5,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
 enum UploadType { vcf, geneExpression, tests }
+import 'dart:convert'; // For jsonDecode
+import 'package:http/http.dart' as http; // For http.MultipartRequest
+import '../../core/secure_storage.dart'; // Ensure this path matches your project structure
+import '../../core/constants.dart'; // Ensure this path matches your project structure
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -53,9 +57,16 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> pickFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom,
+     allowedExtensions: ['vcf', 'txt', 'csv'],
+     withData: true,
+     );
+
     if (result != null) {
       setState(() => selectedFileName = result.files.single.name);
+      
+      if (_selectedType == UploadType.geneExpression) {
+        _uploadAndAnalyze(result.files.single);      }
     }
   }
 
@@ -153,6 +164,7 @@ class _UploadScreenState extends State<UploadScreen> {
       case UploadType.tests: return "Enter Medical Tests";
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

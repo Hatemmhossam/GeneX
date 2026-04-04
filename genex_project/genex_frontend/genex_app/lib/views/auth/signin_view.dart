@@ -17,8 +17,7 @@ class _SigninViewState extends ConsumerState<SigninView> {
   final _formKey = GlobalKey<FormState>();
   final _usernameCtr = TextEditingController();
   final _passwordCtr = TextEditingController();
-
-  bool _obscurePassword = true; 
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -27,10 +26,97 @@ class _SigninViewState extends ConsumerState<SigninView> {
     super.dispose();
   }
 
+  // --- Forgot Password Flow with Email Validation ---
+  // (Kept exactly as provided in your prompt)
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController();
+    final dialogFormKey = GlobalKey<FormState>(); // Key for dialog validation
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Form(
+          key: dialogFormKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Enter your email to receive a 6-digit OTP.'),
+              const SizedBox(height: 15),
+              TextFormField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email Address',
+                  border: OutlineInputBorder(),
+                ),
+                // VALIDATION LOGIC
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your email';
+                  }
+                  if (!value.contains('@') || !value.contains('.')) {
+                    return 'Enter a valid email address';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Check if the email field is valid before proceeding
+              if (dialogFormKey.currentState!.validate()) {
+                // TODO: authVM.sendOTP(emailController.text) logic here
+                Navigator.pop(context);
+                _showOtpResetDialog(emailController.text);
+              }
+            },
+            child: const Text('Send OTP'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOtpResetDialog(String email) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Verify OTP'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('OTP sent to $email'),
+            const SizedBox(height: 10),
+            const TextField(decoration: InputDecoration(labelText: 'OTP Code')),
+            const TextField(
+              obscureText: true,
+              decoration: InputDecoration(labelText: 'New Password'),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Reset Password'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authViewModelProvider);
     final authVM = ref.read(authViewModelProvider.notifier);
+
 
     // Listen for auth state changes
     ref.listen<AuthState>(authViewModelProvider, (previous, next) async {
@@ -80,6 +166,7 @@ class _SigninViewState extends ConsumerState<SigninView> {
       } else if (next.status == AuthStatus.error && next.errorMessage != null) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+
       }
     });
 
@@ -105,15 +192,78 @@ class _SigninViewState extends ConsumerState<SigninView> {
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword ? Icons.visibility_off : Icons.visibility,
+
+      // Stack removed. Body is now directly the Center widget.
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            // Changed opacity to 1.0 since the background is now solid
+            color: Colors.white, 
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_hospital, size: 50, color: Colors.blue),
+                    const SizedBox(height: 10),
+                    const Text("Welcome Back", 
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _usernameCtr,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      validator: (v) => v != null && v.contains('@') ? null : 'Enter valid email',
+
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
+                    const SizedBox(height: 15),
+                    TextFormField(
+                      controller: _passwordCtr,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      validator: (v) => v != null && v.length >= 6 ? null : 'Min 6 chars',
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _showForgotPasswordDialog,
+                        child: const Text('Forgot Password?'),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    LoadingButton(
+                      loading: authState.status == AuthStatus.authenticating,
+                      onPressed: () {
+                        if (_formKey.currentState!.validate()) {
+                          authVM.login(
+                            username: _usernameCtr.text.trim(),
+                            password: _passwordCtr.text,
+                          );
+                        }
+                      },
+                      label: 'Sign In',
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pushReplacementNamed('/signup'),
+                      child: const Text('Don\'t have an account? Sign Up'),
+                    ),
+                  ],
                 ),
-                validator: (v) => v != null && v.length >= 6 ? null : 'Min 6 chars',
               ),
               const SizedBox(height: 20),
               LoadingButton(
@@ -135,6 +285,9 @@ class _SigninViewState extends ConsumerState<SigninView> {
                 child: const Text('Create account'),
               ),
             ],
+
+            ),
+
           ),
         ),
       ),

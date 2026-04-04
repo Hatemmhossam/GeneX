@@ -1,6 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
-
+from django.conf import settings
 from django.db import models
 
 class User(AbstractUser):
@@ -61,3 +61,13 @@ class DoctorPatient(models.Model):
 
     def __str__(self):
         return f"{self.doctor_username} -> {self.patient_username} ({self.status})"
+    
+class GenePredictionReport(models.Model):
+    patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    risk_percentage = models.FloatField()
+    result_label = models.CharField(max_length=50) # e.g., "High Risk"
+    created_at = models.DateTimeField(auto_now_add=True)
+    file_name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.patient.email} - {self.risk_percentage}%"

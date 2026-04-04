@@ -5,6 +5,12 @@ from .views import api_root, signup, signin, ProfileView, MedicineViewSet, Sympt
 from .views import PatientSearchView
 from .views import send_patient_request # Import the new view
 from . import views  # <--- THIS LINE IS MISSING
+from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet, PatientListView
+from .views import PatientListView
+from .views import GeneUploadView # Import the view we wrote earlier
+
+
+
 
 router = DefaultRouter()
 router.register(r'medicines', MedicineViewSet, basename='medicine')
@@ -24,3 +30,7 @@ urlpatterns = [
     path('doctor/patient-records/<int:patient_id>/', views.get_patient_medical_details),
     path('doctor/add-note/<int:symptom_id>/', views.add_doctor_note, name='add-doctor-note'),
 ]
+    path('doctor/patients/', PatientListView.as_view(), name='doctor-patients'),
+    path('gene-upload/', GeneUploadView.as_view(), name='gene-upload'),
+]
+
