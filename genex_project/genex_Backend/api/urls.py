@@ -5,6 +5,8 @@ from .views import api_root, signup, signin, ProfileView, MedicineViewSet, Sympt
 from .views import PatientSearchView
 from .views import send_patient_request # Import the new view
 from . import views  # <--- THIS LINE IS MISSING
+from .views import check_drug_interaction
+from .views import analyze_drug
 
 router = DefaultRouter()
 router.register(r'medicines', MedicineViewSet, basename='medicine')
@@ -23,4 +25,8 @@ urlpatterns = [
     path('doctor/my-patients/', views.get_my_patients, name='doctor-patients'),
     path('doctor/patient-records/<int:patient_id>/', views.get_patient_medical_details),
     path('doctor/add-note/<int:symptom_id>/', views.add_doctor_note, name='add-doctor-note'),
+    path("check-interaction/", check_drug_interaction, name="check_drug_interaction"),
+      path('analyze-drug/', analyze_drug, name='analyze-drug'),
+    
+
 ]

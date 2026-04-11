@@ -1,4 +1,6 @@
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Q
 from rest_framework import status, views, viewsets, generics 
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -6,7 +8,12 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db import connection
+from .models import DrugInteraction
 
+from .models import GeneExpressionFile
+from .services.drug_analysis import analyze_drug_with_file
+import json
+from .models import GeneExpressionFile
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient
 from .serializers import (
@@ -424,3 +431,85 @@ def add_doctor_note(request, symptom_id):
         return Response({"error": "Symptom not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@csrf_exempt
+def check_drug_interaction(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        drug1 = data.get("drug1", "").strip()
+        drug2 = data.get("drug2", "").strip()
+
+        interaction = DrugInteraction.objects.filter(
+            (Q(drug_1__icontains=drug1) & Q(drug_2__icontains=drug2)) |
+            (Q(drug_1__icontains=drug2) & Q(drug_2__icontains=drug1))
+        ).first()
+
+        if interaction:
+            return JsonResponse({
+                "found": True,
+                "description": interaction.interaction_description
+            })
+
+        return JsonResponse({
+            "found": False,
+            "message": "No interaction found"
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)})
+    
+# api/views.py
+import json
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+
+from .models import GeneExpressionFile
+from .services.drug_analysis import analyze_drug_with_file
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def analyze_drug(request):
+    try:
+        user_id = request.data.get("user_id")
+        drug = request.data.get("drug")
+
+        if not user_id:
+            return Response({"error": "user_id is required."}, status=400)
+
+        if not drug:
+            return Response({"error": "drug is required."}, status=400)
+
+        gene_file = (
+            GeneExpressionFile.objects
+            .filter(user_id=user_id)
+            .order_by("-uploaded_at")
+            .first()
+        )
+
+        if not gene_file:
+            return Response({"error": "No gene expression file found."}, status=404)
+
+        file_path = str(gene_file.file)
+
+        result = analyze_drug_with_file(drug=drug, file_path=file_path)
+
+        return Response({
+            "drug": result.get("drug", drug),
+            "combined_score": result.get("combined_score"),
+            "rank_score": result.get("rank_score"),
+            "ic50": result.get("ic50"),
+            "twin_reduction": result.get("twin_reduction"),
+            "best_model": result.get("best_model", "Unknown"),
+            "marker_x": result.get("marker_x", 170),
+            "marker_y": result.get("marker_y", 220),
+            "message": result.get("message", ""),
+            "file_used": file_path,
+        })
+
+    except Exception as e:
+        return Response({"error": f"Unexpected server error: {str(e)}"}, status=500)

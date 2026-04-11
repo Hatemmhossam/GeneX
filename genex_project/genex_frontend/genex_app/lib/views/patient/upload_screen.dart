@@ -179,7 +179,7 @@ class _UploadScreenState extends State<UploadScreen> {
                     items: const [
                       DropdownMenuItem(value: UploadType.vcf, child: Text("VCF")),
                       DropdownMenuItem(value: UploadType.geneExpression, child: Text("Gene Expression")),
-                      DropdownMenuItem(value: UploadType.tests, child: Text("Tests (ML Prediction)")),
+                      DropdownMenuItem(value: UploadType.tests, child: Text("Tests")),
                     ],
                     onChanged: (val) {
                       if (val == null) return;
