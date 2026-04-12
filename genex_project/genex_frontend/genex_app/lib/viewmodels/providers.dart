@@ -11,6 +11,8 @@ import '../repositories/user_repository.dart';
 import 'user_search_viewmodel.dart';
 import 'user_search_state.dart';
 
+final dashboardIndexProvider = StateProvider<int>((ref) => 0);
+
 final userSearchViewModelProvider =
     StateNotifierProvider<UserSearchViewModel, UserSearchState>((ref) {
   final repo = ref.read(userRepositoryProvider);
@@ -76,3 +78,13 @@ final symptomsProvider = FutureProvider<List<dynamic>>((ref) async {
     throw Exception('Failed to load symptoms');
   }
 });
+
+final geneReportsProvider = FutureProvider<List<dynamic>>((ref) async {
+  try {
+    final response = await ref.watch(apiServiceProvider).get('gene-reports/');
+    return response.data as List<dynamic>;
+  } catch (e) {
+    print("Gene Reports Provider Error: $e");
+    rethrow;
+  }
+}); 
