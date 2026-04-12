@@ -9,7 +9,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db import connection
 from .models import DrugInteraction
-
+import joblib
+import pandas as pd
+import numpy as np
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import GenePredictionReport
+from io import TextIOWrapper
 from .models import GeneExpressionFile
 from .services.drug_analysis import analyze_drug_with_file
 import json
@@ -513,3 +519,86 @@ def analyze_drug(request):
 
     except Exception as e:
         return Response({"error": f"Unexpected server error: {str(e)}"}, status=500)
+
+
+MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
+FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
+
+class GeneUploadView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response(
+                {"error": "No file uploaded"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # 1. Preprocessing (Matches training pipeline)
+            text_file = TextIOWrapper(file.file, encoding='utf-8')
+
+            df = pd.read_csv(
+                text_file,
+                sep=',',          # explicit separator (IMPORTANT)
+            )
+            df=df.apply(pd.to_numeric, errors='coerce')
+
+            df=df.fillna(0)
+            df = df.reindex(columns=FEATURES, fill_value=0)            
+            # expected_genes = joblib.load("ml_asssets/gene_features.joblib")
+            expected_count = 2000
+            current_count = df.shape[1]
+            
+            if current_count < expected_count:
+                missing_cols = expected_count - current_count
+                # Create a DataFrame of zeros with generic names
+                extra_data = np.zeros((df.shape[0], missing_cols))
+                extra_df = pd.DataFrame(extra_data, index=df.index)
+                # Combine them
+                df = pd.concat([df, extra_df], axis=1)
+            df_log = np.log2(df + 1)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Gene processing failed: {str(e)}"},
+                status=400
+            )
+        
+        # 2. Prediction
+        X = df_log.to_numpy()
+        probability = MODEL.predict_proba(X)[0][1]
+        print(f"Test Probability with max values: {probability}")
+        # Inside post method, after np.log2 transformation:
+        print(f"--- PREDICTION DEBUG ---")
+        print(f"File: {file.name}")
+        print(f"Mean expression value: {X.mean()}")
+        print(f"Max expression value: {X.max()}")
+        print(f"Number of non-zero features: {np.count_nonzero(X)}")
+
+
+        risk_score = round(float(probability) * 100, 2)
+
+        # 3. Save to DB (SAFE now because user is authenticated)
+        report = GenePredictionReport.objects.create(
+            patient=request.user,
+            risk_percentage=risk_score,
+            result_label="High Risk" if risk_score > 50 else "Low Risk",
+            file_name=file.name
+        )
+        if list(df_log.columns) != list(FEATURES):
+            return Response(
+                {"error": "Uploaded gene expression file does not match model features"},
+                status=400
+            )
+        return Response(
+            {
+                "percentage": risk_score,
+                "label": report.result_label,
+                "report_id": report.id
+            },
+            status=status.HTTP_200_OK
+        )

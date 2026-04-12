@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Required for FilteringTextInputFormatter
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import '../../core/secure_storage.dart'; // Ensure this path matches your project structure
+import '../../core/constants.dart'; // Ensure this path matches your project structure
 
 enum UploadType { vcf, geneExpression, tests }
 
@@ -52,12 +54,127 @@ class _UploadScreenState extends State<UploadScreen> {
     super.dispose();
   }
 
+PlatformFile? _pickedFile;
   Future<void> pickFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom,
+     allowedExtensions: ['vcf', 'txt', 'csv'],
+     withData: true,
+     );
+
     if (result != null) {
       setState(() => selectedFileName = result.files.single.name);
+      
+      if (_selectedType == UploadType.geneExpression) {
+        _uploadAndAnalyze(result.files.single);      }
     }
   }
+
+
+
+
+Future<void> _uploadAndAnalyze(PlatformFile file) async {
+    // 1. Show Loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+  
+    try {
+      var request = http.MultipartRequest('POST', Uri.parse("${baseUrl}gene-upload/"));
+      
+      final token = await SecureStorage.readToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      // WEB FIX: Check if bytes are available (Standard for Web)
+      if (file.bytes != null) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'file',
+          file.bytes!,
+          filename: file.name,
+        ));
+      } else if (file.path != null) {
+        // Fallback for Mobile/Desktop
+        request.files.add(await http.MultipartFile.fromPath('file', file.path!));
+      } else {
+        throw Exception("File data is inaccessible.");
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      Navigator.pop(context); // remove loading dialog FIRST
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        _showResultDialogg(
+          (data['percentage'] as num).toDouble(),
+          data['label'],
+        );
+      } else {
+        // DO NOT jsonDecode blindly
+        String errorMessage = "Upload failed";
+
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['error'] ?? errorMessage;
+        } catch (_) {
+          errorMessage = response.body; // fallback
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+
+
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload Failed: $e")));
+    }
+  }
+
+  void _showResultDialogg(double percentage, String label) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text("Analysis Results"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text("Rheumatoid Arthritis Probability:"),
+          const SizedBox(height: 10),
+          Text("$percentage%", 
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, 
+            color: percentage > 50 ? Colors.red : Colors.green)),
+          Text("Classification: $label"),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")),
+      ],
+    ),
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   Future<void> sendTestsToBackend() async {
     // TRIGGER VALIDATION: If the form is not valid, stop here.
