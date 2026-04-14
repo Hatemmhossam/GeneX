@@ -7,6 +7,17 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+
+from .models import User, Medicine, SymptomReport
+from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
+
+from django.db import connection
+from rest_framework.parsers import MultiPartParser, FormParser
+from .services import run_twin_simulation
+# ✅ IMPORTS: Ensure all your models and serializers are here
+from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
+
 from django.db import connection
 from .models import DrugInteraction
 import joblib
@@ -22,6 +33,7 @@ import json
 from .models import GeneExpressionFile
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient
+
 from .serializers import (
     UserSerializer, 
     MedicineSerializer, 
@@ -29,6 +41,7 @@ from .serializers import (
     PatientSerializer
 )
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
+
 
 # --- Helper: JWT Token Generation ---
 def get_tokens_for_user(user):
@@ -140,6 +153,91 @@ class ProfileView(views.APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+#---upload gene file api view---
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def upload_gene_file(request):
+    if 'file' not in request.FILES:
+        return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    uploaded_file = FileUpload.objects.create(
+        user=request.user,
+        file=request.FILES['file']
+    )
+
+    request.user.current_gene_file = uploaded_file
+    request.user.save()
+
+    return Response({
+        "message": "Gene file uploaded successfully",
+        "file_id": uploaded_file.id,
+        "file_url": uploaded_file.file.url if uploaded_file.file else None
+    }, status=status.HTTP_201_CREATED)
+
+#--- Twin Simulation View ---
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def run_twin(request):
+    drugs = request.data.get('drugs', [])
+
+    if not drugs or not isinstance(drugs, list):
+        return Response(
+            {"error": "drugs must be a non-empty list"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not request.user.current_gene_file:
+        return Response(
+            {"error": "No active gene expression file found for this user"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    gene_file_path = request.user.current_gene_file.file.path
+
+    try:
+        result = run_twin_simulation(
+            gene_file_path=gene_file_path,
+            drugs=drugs
+        )
+
+        saved_run = TwinRun.objects.create(
+            user=request.user,
+            selected_drugs=drugs,
+            results=result
+        )
+
+        return Response({
+            "message": "Twin simulation completed successfully",
+            "run_id": saved_run.id,
+            "result": result
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response(
+            {"error": f"Twin simulation failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+#---History API View---
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_twin_history(request):
+    runs = TwinRun.objects.filter(user=request.user).order_by('-created_at')
+
+    data = []
+    for run in runs:
+        data.append({
+            "id": run.id,
+            "selected_drugs": run.selected_drugs,
+            "results": run.results,
+            "created_at": run.created_at
+        })
+
+    return Response(data, status=status.HTTP_200_OK)
 # --- Medicine Views ---
 
 class MedicineViewSet(viewsets.ModelViewSet):
