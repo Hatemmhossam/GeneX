@@ -1,7 +1,8 @@
 # api/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet
+from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet ,run_twin
+
 
 router = DefaultRouter()
 router.register(r'medicines', MedicineViewSet, basename='medicine')
@@ -13,4 +14,5 @@ urlpatterns = [
     path('signin/', signin),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('', include(router.urls)),   # <-- this adds /medicines/ endpoints
+    path('run-twin/', run_twin),
 ]
