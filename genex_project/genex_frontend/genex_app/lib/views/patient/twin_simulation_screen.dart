@@ -2,13 +2,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:model_viewer_plus/model_viewer_plus.dart';
+import 'package:flutter/foundation.dart';
 
 class TwinSimulationScreen extends StatefulWidget {
   const TwinSimulationScreen({super.key});
 
   @override
   State<TwinSimulationScreen> createState() => _TwinSimulationScreenState();
+  
 }
+
 
 class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
   final TextEditingController drugController = TextEditingController();
@@ -29,6 +32,61 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
   double markerX = 170;
   double markerY = 220;
 
+  String dnaModelPath = 'assets/models/dna.glb';
+
+  // ✅ DNA MODEL SWITCHING
+  void updateDnaModel(double? risk) {
+  String newPath;
+
+  if (risk == null) {
+    newPath = kIsWeb
+        ? 'assets/assets/models/dna.glb'
+        : 'assets/models/dna.glb';
+  } else if (risk < 30) {
+    newPath = kIsWeb
+        ? 'assets/assets/models/dnagreen.glb'
+        : 'assets/models/dnagreen.glb';
+  } else if (risk <= 70) {
+    newPath = kIsWeb
+        ? 'assets/assets/models/dnaorange.glb'
+        : 'assets/models/dnaorange.glb';
+  } else {
+    newPath = kIsWeb
+        ? 'assets/assets/models/dnared.glb'
+        : 'assets/models/dnared.glb';
+  }
+
+  print("RISK: $risk");
+  print("NEW MODEL: $newPath");
+
+  if (dnaModelPath != newPath) {
+    setState(() {
+      dnaModelPath = newPath;
+    });
+  }
+}
+  // ✅ FETCH RISK FROM DATABASE API
+  Future<void> fetchUserRisk() async {
+  try {
+    final response = await http.get(
+      Uri.parse('http://127.0.0.1:8000/api/get-user-risk/2/'),
+    );
+
+    // 1. Check if the status code is 200 (Success)
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      double? risk = double.tryParse(data['risk_percentage']?.toString() ?? '');
+      updateDnaModel(risk);
+    } else {
+      // 2. If it's HTML, this will print the error page so you can read it
+      print("❌ Server Error (${response.statusCode}): ${response.body}");
+    }
+  } catch (e) {
+    print("❌ Connection error: $e");
+  }
+}
+
+  // ✅ DRUG ANALYSIS
   Future<void> analyzeDrug() async {
     final drug = drugController.text.trim();
 
@@ -56,6 +114,8 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
 
       final data = jsonDecode(response.body);
 
+      print("FULL API RESPONSE: $data");
+
       if (response.statusCode == 200) {
         setState(() {
           drugName = data['drug']?.toString() ?? drug;
@@ -63,25 +123,18 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
           message = data['message']?.toString() ?? "";
           fileUsed = data['file_used']?.toString() ?? "";
 
-          combinedScore = data['combined_score'] != null
-              ? double.tryParse(data['combined_score'].toString())
-              : null;
-
-          rankScore = data['rank_score'] != null
-              ? double.tryParse(data['rank_score'].toString())
-              : null;
-
-          ic50 = data['ic50'] != null
-              ? double.tryParse(data['ic50'].toString())
-              : null;
-
-          twinReduction = data['twin_reduction'] != null
-              ? double.tryParse(data['twin_reduction'].toString())
-              : null;
+          combinedScore = double.tryParse(data['combined_score']?.toString() ?? '');
+          rankScore = double.tryParse(data['rank_score']?.toString() ?? '');
+          ic50 = double.tryParse(data['ic50']?.toString() ?? '');
+          twinReduction = double.tryParse(data['twin_reduction']?.toString() ?? '');
 
           markerX = (data['marker_x'] ?? 170).toDouble();
           markerY = (data['marker_y'] ?? 220).toDouble();
         });
+
+        // ✅ AFTER DRUG → FETCH RISK FROM DB
+        await fetchUserRisk();
+
       } else {
         setState(() {
           errorMessage = data['error']?.toString() ?? "Request failed.";
@@ -98,6 +151,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     }
   }
 
+  // ✅ COLOR FOR MARKER
   Color getScoreColor() {
     if (combinedScore == null) return Colors.grey;
     if (combinedScore! >= 0.8) return Colors.green;
@@ -110,7 +164,12 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     drugController.dispose();
     super.dispose();
   }
-
+  @override
+void initState() {
+  super.initState();
+  // Fetch the risk as soon as the screen opens
+  fetchUserRisk();
+}
   @override
   Widget build(BuildContext context) {
     final scoreColor = getScoreColor();
@@ -121,18 +180,26 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
       ),
       body: Stack(
         children: [
-          ModelViewer(
-            src: 'assets/models/dna.glb',
-            variantName: 'red',
-            alt: "DNA Model",
-            backgroundColor: Colors.white,
-            autoRotate: true,
-            cameraControls: true,
-            disableZoom: false,
-            cameraOrbit: "0deg 75deg 10m",
-            fieldOfView: "45deg",
-          ),
+          // ✅ FORCE MODEL REBUILD
+       Positioned.fill(
+      child: SizedBox.expand(
+      child: ModelViewer(
+      key: UniqueKey(),
+      src: dnaModelPath,
+      alt: "DNA Model",
+      autoRotate: true,
+      cameraControls: true,
+      ar: false,
+      backgroundColor: Colors.white,
+      shadowIntensity: 1.0,
+      exposure: 1.2,
+      cameraOrbit: "0deg 75deg 10m",
+      fieldOfView: "45deg",
+    ),
+  ),
+),
 
+          // 📍 MARKER
           Positioned(
             top: markerY,
             left: markerX,
@@ -146,6 +213,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
             ),
           ),
 
+          // 🔍 SEARCH BAR
           Positioned(
             top: 20,
             left: 20,
@@ -187,6 +255,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
             ),
           ),
 
+          // ❌ ERROR
           if (errorMessage.isNotEmpty)
             Positioned(
               top: 95,
@@ -210,6 +279,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
               ),
             ),
 
+          // 📊 DATA CARD
           Positioned(
             bottom: 20,
             left: 20,

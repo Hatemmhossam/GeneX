@@ -22,12 +22,14 @@ import json
 from .models import GeneExpressionFile
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient
+from .models import GenePredictionReport
 from .serializers import (
     UserSerializer, 
     MedicineSerializer, 
     SymptomReportSerializer, 
     PatientSerializer
 )
+
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
 # --- Helper: JWT Token Generation ---
@@ -602,3 +604,14 @@ class GeneUploadView(APIView):
             },
             status=status.HTTP_200_OK
         )
+def get_user_risk(request, user_id):
+    try:
+        # ✅ Changed 'user_id' to 'patient_id' based on your error choices
+        prediction = GenePredictionReport.objects.filter(patient_id=user_id).latest('created_at')
+        
+        return JsonResponse({
+            "status": "success",
+            "risk_percentage": prediction.risk_percentage 
+        })
+    except GenePredictionReport.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "No data found for this patient"}, status=404)
