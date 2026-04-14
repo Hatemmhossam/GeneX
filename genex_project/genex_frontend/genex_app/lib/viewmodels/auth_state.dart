@@ -32,4 +32,11 @@ class AuthState {
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
+
+  // ✅ ADD THIS: easy access to role
+  String? get role => user?.role;
+
+  // (optional but useful)
+  bool get isAuthenticated => status == AuthStatus.authenticated;
 }
+

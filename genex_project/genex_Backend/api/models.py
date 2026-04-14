@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
-
+from django.contrib.auth.models import User
+from django.conf import settings
 from django.db import models
 
 class User(AbstractUser):
@@ -56,9 +57,6 @@ class SymptomReport(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-<<<<<<< Updated upstream
-        return f"{self.user.username} - {self.symptom_name} ({self.severity}/10)"
-=======
         return f"{self.user.username} - {self.symptom_name} ({self.severity}/10)"
     
 class DoctorPatient(models.Model):
@@ -71,6 +69,7 @@ class DoctorPatient(models.Model):
     def __str__(self):
         return f"{self.doctor_username} -> {self.patient_username} ({self.status})"
     
+
 class TwinRun(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="twin_runs")
     selected_drugs = models.JSONField()   # list of drugs
@@ -79,4 +78,30 @@ class TwinRun(models.Model):
 
     def __str__(self):
         return f"TwinRun {self.id} - {self.user.username}"
->>>>>>> Stashed changes
+
+class DrugInteraction(models.Model):
+    drug_1 = models.CharField(max_length=255, db_index=True)
+    drug_2 = models.CharField(max_length=255, db_index=True)
+    interaction_description = models.TextField()
+
+    def __str__(self):
+        return f"{self.drug_1} - {self.drug_2}"
+    
+
+class GeneExpressionFile(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    file = models.FileField(upload_to='gene_data/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.id} - {self.file.name}"
+
+class GenePredictionReport(models.Model):
+    patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    risk_percentage = models.FloatField()
+    result_label = models.CharField(max_length=50) # e.g., "High Risk"
+    created_at = models.DateTimeField(auto_now_add=True)
+    file_name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.patient.email} - {self.risk_percentage}%"
