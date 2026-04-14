@@ -18,7 +18,13 @@ class User(AbstractUser):
     weight = models.FloatField(null=True, blank=True)  # Weight in kg
     height = models.FloatField(null=True, blank=True)  # Height in cm
     gender = models.CharField(max_length=10, null=True, blank=True)  # Gender (optional)
-
+    current_gene_file = models.ForeignKey(
+        "FileUpload",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="active_for_user"
+    )
    
     def __str__(self):
         return f"{self.username} ({self.role})"
@@ -63,6 +69,16 @@ class DoctorPatient(models.Model):
     def __str__(self):
         return f"{self.doctor_username} -> {self.patient_username} ({self.status})"
     
+
+class TwinRun(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="twin_runs")
+    selected_drugs = models.JSONField()   # list of drugs
+    results = models.JSONField()          # simulation output
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"TwinRun {self.id} - {self.user.username}"
+
 class DrugInteraction(models.Model):
     drug_1 = models.CharField(max_length=255, db_index=True)
     drug_2 = models.CharField(max_length=255, db_index=True)
