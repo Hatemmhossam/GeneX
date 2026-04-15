@@ -5,6 +5,9 @@ import 'profile_view.dart';
 import 'upload_screen.dart';
 import 'med_history_screen.dart';
 import 'twin_simulation_screen.dart';
+import 'doctor_requests_screen.dart';
+import 'reports_screen.dart';
+
 import 'symptoms_screen.dart'; // 1. IMPORT YOUR NEW FILE
 import 'about_system_screen.dart';
 
@@ -26,6 +29,8 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
     const SymptomReportScreen(),
     const UploadScreen(),
     const TwinSimulationScreen(),
+    const DoctorRequestsScreen(),
+    const ReportsScreen(),
     const AboutSystemScreen(),
   ];
 
@@ -76,6 +81,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
               selectedIconTheme: const IconThemeData(color: Colors.teal),
               unselectedIconTheme: const IconThemeData(color: Colors.grey),
               destinations: const [
+               
                 NavigationRailDestination(
                   icon: Icon(Icons.dashboard),
                   label: Text('Overview'),
@@ -100,6 +106,13 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
                   icon: Icon(Icons.biotech),
                   label: Text('Simulation'),
                 ),
+                 NavigationRailDestination(
+                   icon: Icon(Icons.person),
+                   label: Text('Doctor Requests')),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.folder_shared), 
+                    label: Text('Reports')),
+
                 NavigationRailDestination(
                   icon: Icon(Icons.info_outline),
                   label: Text('About'),
@@ -118,7 +131,10 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
               child: Column(
                 children: [
                   _buildHeader(context),
-                  Expanded(child: _pages[_selectedIndex]),
+                 Expanded(
+  child: _pages[_selectedIndex.clamp(0, _pages.length - 1)],
+),
+
                 ],
               ),
             ),
@@ -189,37 +205,20 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
 } // <--- End of State class
 
 class DashboardOverview extends ConsumerWidget {
-  // Switched to ConsumerWidget
   const DashboardOverview({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the medicine provider
     final medsAsync = ref.watch(medicinesProvider);
+    // 1. Watch the reports to get the latest risk status
+    final reportsAsync = ref.watch(geneReportsProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "System Overview",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AboutSystemScreen(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.info_outline),
-            label: const Text("About the System"),
-          ),
-
+          const Text("System Overview", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
           GridView.count(
             crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
@@ -229,41 +228,50 @@ class DashboardOverview extends ConsumerWidget {
             childAspectRatio: 1.5,
             physics: const NeverScrollableScrollPhysics(),
             children: [
-              _medicalWidget(
-                "Vitals Status",
-                "Stable",
-                Icons.favorite,
-                Colors.red,
+              
+              // --- DYNAMIC VITALS/RISK CARD ---
+              reportsAsync.when(
+                data: (reports) {
+                  // Get the latest report if it exists
+                  final latestReport = reports.isNotEmpty ? reports.first : null;
+                  final String status = latestReport != null ? latestReport['label'] : "No Data";
+                  final Color statusColor = status.contains("High") ? Colors.red : Colors.green;
+
+                  return _medicalWidget(
+                    "Vitals Status", 
+                    status, 
+                    latestReport != null ? Icons.favorite : Icons.favorite_border, 
+                    statusColor
+                  );
+                },
+                loading: () => _medicalWidget("Vitals Status", "Loading...", Icons.favorite, Colors.grey),
+                error: (err, stack) => _medicalWidget("Vitals Status", "Error", Icons.error, Colors.orange),
               ),
 
-              // Use .when to handle Loading, Error, and Data states
+              // --- CLICKABLE MEDS CARD ---
               medsAsync.when(
-                data: (meds) => _medicalWidget(
-                  "Active Meds",
-                  "${meds.length} Prescribed",
-                  Icons.medication,
-                  Colors.blue,
+                data: (meds) => InkWell(
+                  onTap: () => ref.read(dashboardIndexProvider.notifier).state = 2,
+                  borderRadius: BorderRadius.circular(12),
+                  child: _medicalWidget(
+                    "Active Meds", 
+                    "${meds.length} Prescribed", 
+                    Icons.medication, 
+                    Colors.blue
+                  ),
                 ),
-                loading: () => _medicalWidget(
-                  "Active Meds",
-                  "Loading...",
-                  Icons.medication,
-                  Colors.grey,
-                ),
-                error: (err, stack) => _medicalWidget(
-                  "Active Meds",
-                  "Error",
-                  Icons.error,
-                  Colors.orange,
-                ),
+                loading: () => _medicalWidget("Active Meds", "Loading...", Icons.medication, Colors.grey),
+                error: (err, stack) => _medicalWidget("Active Meds", "Error", Icons.error, Colors.orange),
               ),
 
-              _medicalWidget(
-                "Next Simulation",
-                "Scheduled: Jan 30",
-                Icons.science,
-                Colors.purple,
+              // --- REPORTS CARD ---
+              InkWell(
+                onTap: () => ref.read(dashboardIndexProvider.notifier).state = 2, 
+                borderRadius: BorderRadius.circular(12),
+                child: _medicalWidget("All Reports", "View History", Icons.folder_copy, Colors.blueGrey),
               ),
+
+              _medicalWidget("Next Simulation", "Scheduled: Feb 25", Icons.science, Colors.purple),
             ],
           ),
         ],
@@ -271,23 +279,16 @@ class DashboardOverview extends ConsumerWidget {
     );
   }
 
-  Widget _medicalWidget(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  // _medicalWidget remains the same...
+}
+  Widget _medicalWidget(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
         ],
       ),
       child: Column(
@@ -296,16 +297,11 @@ class DashboardOverview extends ConsumerWidget {
           Icon(icon, color: color, size: 40),
           const SizedBox(height: 10),
           Text(title, style: const TextStyle(color: Colors.grey)),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
-}
-
 
 // --- DashboardOverview is now outside to fix the red error ---
 

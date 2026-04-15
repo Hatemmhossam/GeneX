@@ -6,10 +6,30 @@ import 'auth_viewmodel.dart';
 import 'auth_state.dart';
 import 'package:dio/dio.dart';
 import '../core/secure_storage.dart';
+// lib/viewmodels/providers.dart (add these)
+import '../repositories/user_repository.dart';
+import 'user_search_viewmodel.dart';
+import 'user_search_state.dart';
+
+final dashboardIndexProvider = StateProvider<int>((ref) => 0);
+
+final userSearchViewModelProvider =
+    StateNotifierProvider<UserSearchViewModel, UserSearchState>((ref) {
+  final repo = ref.read(userRepositoryProvider);
+  return UserSearchViewModel(repo);
+});
+
+
+
+
+
 
 // api service provider (singleton)
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
-
+final userRepositoryProvider = Provider<UserRepository>((ref) {
+  final api = ref.watch(apiServiceProvider);
+  return UserRepository(api); // <--- Injecting the API service here
+});
 // auth repository
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final api = ref.read(apiServiceProvider);
@@ -58,3 +78,13 @@ final symptomsProvider = FutureProvider<List<dynamic>>((ref) async {
     throw Exception('Failed to load symptoms');
   }
 });
+
+final geneReportsProvider = FutureProvider<List<dynamic>>((ref) async {
+  try {
+    final response = await ref.watch(apiServiceProvider).get('gene-reports/');
+    return response.data as List<dynamic>;
+  } catch (e) {
+    print("Gene Reports Provider Error: $e");
+    rethrow;
+  }
+}); 
