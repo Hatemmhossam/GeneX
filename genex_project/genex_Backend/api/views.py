@@ -7,14 +7,14 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
+from .services import MLService
 
 from .models import User, Medicine, SymptomReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
 
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
-from .services import run_twin_simulation
+#from .services import run_twin_simulation
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
 
@@ -714,3 +714,32 @@ def get_user_risk(request, user_id):
         })
     except GenePredictionReport.DoesNotExist:
         return JsonResponse({"status": "error", "message": "No data found for this patient"}, status=404)
+
+ml_service = MLService()
+
+
+def evaluate(request):
+      # ✅ browser test
+    if request.method == "GET":
+        return JsonResponse({
+            "message": "API is working. Use POST with file + drug1 + optional drug2."
+        })
+
+    if request.method == "POST":
+
+        file = request.FILES.get("file")
+        drug1 = request.POST.get("drug1")
+        drug2 = request.POST.get("drug2")
+
+        if file is None:
+            return JsonResponse({"error": "file required"}, status=400)
+
+        patient_df = pd.read_csv(file)
+
+        result = ml_service.evaluate(
+            drug1=drug1,
+            drug2=drug2,
+            patient_df=patient_df
+        )
+
+        return JsonResponse(result)
