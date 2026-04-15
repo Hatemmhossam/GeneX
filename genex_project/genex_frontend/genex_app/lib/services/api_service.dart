@@ -14,6 +14,7 @@ class ApiService {
             // ❌ OLD (The cause of the error):
             // baseUrl: baseUrl, 
 
+<<<<<<< Updated upstream
             // ✅ NEW (The Fix for Web):
             baseUrl: 'http://127.0.0.1:8000/api/', 
             
@@ -36,6 +37,45 @@ class ApiService {
   }
 
   /// Used after login
+=======
+  Future<Response> post(
+    String path,
+    Map<String, dynamic> data, {
+    Map<String, dynamic>? headers,
+  }) {
+    return _dio.post(
+      path,
+      data: data,
+      options: Options(headers: headers),
+    );
+  }
+
+  // ✅ TWIN SIMULATION API
+  Future<Map<String, dynamic>> evaluateTwinSimulation({
+    required String filePath,
+    required String drug1,
+    String? drug2,
+  }) async {
+    FormData formData = FormData.fromMap({
+      "file": await MultipartFile.fromFile(filePath),
+      "drug1": drug1,
+      if (drug2 != null && drug2.isNotEmpty) "drug2": drug2,
+    });
+
+    final response = await _dio.post(
+      "/evaluate/",
+      data: formData,
+      options: Options(
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      ),
+    );
+
+    return Map<String, dynamic>.from(response.data);
+  }
+
+>>>>>>> Stashed changes
   void setAuthToken(String token) {
     _dio.options.headers['Authorization'] = 'Bearer $token';
   }
@@ -43,6 +83,7 @@ class ApiService {
   void removeAuthToken() {
     _dio.options.headers.remove('Authorization');
   }
+<<<<<<< Updated upstream
 
   // --- Generic Helpers ---
 
@@ -227,4 +268,6 @@ class ApiService {
       return false;
     }
   }
+=======
+>>>>>>> Stashed changes
 }

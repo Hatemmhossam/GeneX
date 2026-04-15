@@ -1,6 +1,7 @@
 # api/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+<<<<<<< Updated upstream
 from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet
 from .views import PatientSearchView
 from .views import send_patient_request # Import the new view
@@ -10,6 +11,11 @@ from .views import analyze_drug
 from .views import GeneUploadView # Import the view we wrote earlier
 from .views import GeneReportListView
 
+=======
+from .views import api_root, evaluate, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet 
+from django.urls import path
+from .views import evaluate
+>>>>>>> Stashed changes
 
 router = DefaultRouter()
 router.register(r'medicines', MedicineViewSet, basename='medicine')
@@ -21,6 +27,7 @@ urlpatterns = [
     path('signin/', signin),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('', include(router.urls)),   # <-- this adds /medicines/ endpoints
+<<<<<<< Updated upstream
     path('search-patients/', PatientSearchView.as_view(), name='search-patients'),
     path('send-request/', send_patient_request, name='send-request'),
     path('patient/requests/', views.get_patient_requests, name='patient-requests'),
@@ -35,3 +42,7 @@ urlpatterns = [
 
 
 ]
+=======
+    path("evaluate/", evaluate),
+    ]
+>>>>>>> Stashed changes
