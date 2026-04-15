@@ -59,7 +59,6 @@ class SymptomReport(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.symptom_name} ({self.severity}/10)"
     
-<<<<<<< Updated upstream
 class DoctorPatient(models.Model):
     # These match your screenshot columns
     doctor_username = models.CharField(max_length=150)
@@ -106,5 +105,3 @@ class GenePredictionReport(models.Model):
 
     def __str__(self):
         return f"{self.patient.email} - {self.risk_percentage}%"
-=======
->>>>>>> Stashed changes

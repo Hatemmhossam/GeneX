@@ -1,20 +1,16 @@
-<<<<<<< Updated upstream
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 
-=======
 //Twin Simulation screen (placeholder)
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../services/api_service.dart';
->>>>>>> Stashed changes
 class TwinSimulationScreen extends StatefulWidget {
   const TwinSimulationScreen({super.key});
 
   @override
-<<<<<<< Updated upstream
   State<TwinSimulationScreen> createState() => _TwinSimulationScreenState();
 }
 
@@ -119,7 +115,6 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     super.dispose();
   }
 
-=======
   State<TwinSimulationScreen> createState() =>
       _TwinSimulationScreenState();
 }
@@ -199,14 +194,12 @@ class _TwinSimulationScreenState
   // -------------------------
   // UI
   // -------------------------
->>>>>>> Stashed changes
   @override
   Widget build(BuildContext context) {
     final scoreColor = getScoreColor();
 
     return Scaffold(
       appBar: AppBar(
-<<<<<<< Updated upstream
         title: const Text('Genetic Twin Simulation'),
       ),
       body: Stack(
@@ -346,7 +339,6 @@ class _TwinSimulationScreenState
             ),
           ),
         ],
-=======
         title: const Text("Twin Simulation"),
       ),
       body: Padding(
@@ -413,7 +405,6 @@ class _TwinSimulationScreenState
               ),
           ],
         ),
->>>>>>> Stashed changes
       ),
     );
   }

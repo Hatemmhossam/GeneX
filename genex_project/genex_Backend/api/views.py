@@ -192,7 +192,6 @@ class SymptomViewSet(viewsets.ModelViewSet):
         return SymptomReport.objects.filter(user=self.request.user).order_by('-created_at')
 
     def perform_create(self, serializer):
-<<<<<<< Updated upstream
         serializer.save(user=self.request.user)
 
 
@@ -630,7 +629,6 @@ class GeneUploadView(APIView):
             },
             status=status.HTTP_200_OK
         )
-=======
         # Link the report to the logged-in user automatically
         serializer.save(user=self.request.user)
 
@@ -664,4 +662,3 @@ def evaluate(request):
         )
 
         return JsonResponse(result)
->>>>>>> Stashed changes
