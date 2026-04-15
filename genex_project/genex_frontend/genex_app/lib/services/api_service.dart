@@ -21,12 +21,43 @@ class ApiService {
               receiveTimeout: const Duration(seconds: 10),
             ));
 
-  Future<Response> post(String path, Map<String, dynamic> data,
-      {Map<String, dynamic>? headers}) {
-    return _dio.post(path, data: data, options: Options(headers: headers));
+  Future<Response> post(
+    String path,
+    Map<String, dynamic> data, {
+    Map<String, dynamic>? headers,
+  }) {
+    return _dio.post(
+      path,
+      data: data,
+      options: Options(headers: headers),
+    );
   }
 
-  // If needed later: set auth header
+  // TWIN SIMULATION API
+  Future<Map<String, dynamic>> evaluateTwinSimulation({
+    required String filePath,
+    required String drug1,
+    String? drug2,
+  }) async {
+    FormData formData = FormData.fromMap({
+      "file": await MultipartFile.fromFile(filePath),
+      "drug1": drug1,
+      if (drug2 != null && drug2.isNotEmpty) "drug2": drug2,
+    });
+
+    final response = await _dio.post(
+      "/evaluate/",
+      data: formData,
+      options: Options(
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      ),
+    );
+
+    return Map<String, dynamic>.from(response.data);
+  }
+
   void setAuthToken(String token) {
     _dio.options.headers['Authorization'] = 'Bearer $token';
   }
