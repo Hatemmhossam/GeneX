@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q
 from rest_framework import status, views, viewsets, generics 
 from rest_framework.response import Response
+
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -11,6 +12,18 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .models import User, Medicine, SymptomReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
+from django.db import connection
+from rest_framework.parsers import MultiPartParser, FormParser
+from .services import run_twin_simulation
+# ✅ IMPORTS: Ensure all your models and serializers are here
+from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
+# from .serializers import (
+#     UserSerializer, 
+#     MedicineSerializer, 
+#     SymptomReportSerializer, 
+#     # PatientSerializer
+# )
+print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
