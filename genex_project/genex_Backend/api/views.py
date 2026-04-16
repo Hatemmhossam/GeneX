@@ -14,6 +14,7 @@ from .models import User, Medicine, SymptomReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.views.decorators.csrf import csrf_exempt
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
 # from .serializers import (
@@ -728,7 +729,7 @@ def get_user_risk(request, user_id):
 
 ml_service = MLService()
 
-
+@csrf_exempt
 def evaluate(request):
       # ✅ browser test
     if request.method == "GET":

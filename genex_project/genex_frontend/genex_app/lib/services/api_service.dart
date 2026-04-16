@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/constants.dart';
 import '../core/secure_storage.dart';
 import '../models/user_model.dart';
+import 'dart:typed_data';
 
 class ApiService {
   final Dio _dio;
@@ -222,29 +223,37 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> evaluateTwinSimulation({
-    required String filePath,
-    required String drug1,
-    String? drug2,
-  }) async {
-    await _refreshAuthHeader();
+  required Uint8List bytes,      // Changed from String filePath
+  required String fileName,      // Added to give the file a name
+  required String drug1,
+  String? drug2,
+}) async {
+  await _refreshAuthHeader();
 
-    try {
-      FormData formData = FormData.fromMap({
-        "file": await MultipartFile.fromFile(filePath),
-        "drug1": drug1,
-        if (drug2 != null && drug2.isNotEmpty) "drug2": drug2,
-      });
+  try {
+    FormData formData = FormData.fromMap({
+      // We use fromBytes because 'fromFile' crashes on Web
+      "file": MultipartFile.fromBytes(
+        bytes, 
+        filename: fileName,
+      ),
+      "drug1": drug1,
+      if (drug2 != null && drug2.isNotEmpty) "drug2": drug2,
+    });
 
-      final response = await _dio.post(
-        'evaluate/', // IMPORTANT: matches Django url
-        data: formData,
-        options: Options(contentType: 'multipart/form-data'),
-      );
+    final response = await _dio.post(
+      'evaluate/', 
+      data: formData,
+      options: Options(
+        contentType: 'multipart/form-data',
+        // Optional: Sometimes Dio needs followRedirects: true for multipart
+      ),
+    );
 
-      return Map<String, dynamic>.from(response.data);
-    } on DioException catch (e) {
-      debugPrint("Twin API Error: ${e.response?.data}");
-      rethrow;
-    }
+    return Map<String, dynamic>.from(response.data);
+  } on DioException catch (e) {
+    debugPrint("Twin API Error: ${e.response?.data ?? e.message}");
+    rethrow;
   }
+}
 }

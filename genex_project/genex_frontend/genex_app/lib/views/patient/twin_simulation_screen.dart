@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../services/api_service.dart';
+import 'dart:typed_data';
 
 //dahhh akherrr hagaaa
 class TwinSimulationScreen extends StatefulWidget {
@@ -25,15 +26,22 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
   // -------------------------
   // PICK CSV FILE
   // -------------------------
+  Uint8List? fileBytes; // Add this to your state variables
+  String? fileName;
+
   Future<void> pickFile() async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv', 'txt'],
+      withData: true, // This is crucial for Web!
     );
 
     if (picked != null) {
       setState(() {
-        filePath = picked.files.single.path;
+        fileBytes = picked.files.first.bytes;
+        fileName = picked.files.first.name;
+        // path will be null on web, so we don't rely on it anymore
+        filePath = picked.files.first.name;
       });
     }
   }
@@ -61,7 +69,8 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     try {
       // ✅ FIXED CALL (NO TwinService ANYMORE)
       final res = await apiService.evaluateTwinSimulation(
-        filePath: filePath!,
+        bytes: fileBytes!, // The Uint8List you picked
+        fileName: fileName!, // The name of the file
         drug1: drug1Controller.text.trim(),
         drug2: drug2Controller.text.trim(),
       );
