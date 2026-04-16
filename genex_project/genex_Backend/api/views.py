@@ -48,6 +48,9 @@ from .models import User, Medicine, SymptomReport, DoctorPatient
 
 from .models import GenePredictionReport
 
+#for test 
+from django.views.decorators.csrf import csrf_exempt
+
 from .serializers import (
     UserSerializer, 
     MedicineSerializer, 
@@ -728,7 +731,7 @@ def get_user_risk(request, user_id):
 
 ml_service = MLService()
 
-
+@csrf_exempt
 def evaluate(request):
       # ✅ browser test
     if request.method == "GET":

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../core/constants.dart';
 import '../core/secure_storage.dart';
 import '../models/user_model.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   final Dio _dio;
@@ -221,30 +223,57 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> evaluateTwinSimulation({
-    required String filePath,
-    required String drug1,
-    String? drug2,
-  }) async {
-    await _refreshAuthHeader();
+Future<Map<String, dynamic>> evaluateTwinSimulation({
+  required PlatformFile file,
+  required String drug1,
+  String? drug2,
+}) async {
+  await _refreshAuthHeader();
 
-    try {
-      FormData formData = FormData.fromMap({
-        "file": await MultipartFile.fromFile(filePath),
-        "drug1": drug1,
-        if (drug2 != null && drug2.isNotEmpty) "drug2": drug2,
-      });
+  try {
+    MultipartFile multipartFile;
 
-      final response = await _dio.post(
-        'evaluate/', // IMPORTANT: matches Django url
-        data: formData,
-        options: Options(contentType: 'multipart/form-data'),
+    if (kIsWeb) {
+      if (file.bytes == null) {
+        throw Exception("Web upload failed: file bytes are missing.");
+      }
+
+      multipartFile = MultipartFile.fromBytes(
+        file.bytes!,
+        filename: file.name,
       );
+    } else {
+      if (file.path == null || file.path!.isEmpty) {
+        throw Exception("File path is missing.");
+      }
 
-      return Map<String, dynamic>.from(response.data);
-    } on DioException catch (e) {
-      debugPrint("Twin API Error: ${e.response?.data}");
-      rethrow;
+      multipartFile = await MultipartFile.fromFile(
+        file.path!,
+        filename: file.name,
+      );
     }
-  }
+
+    final formData = FormData.fromMap({
+      "file": multipartFile,
+      "drug1": drug1,
+      if (drug2 != null && drug2.trim().isNotEmpty) "drug2": drug2.trim(),
+    });
+
+    final response = await _dio.post(
+      'evaluate/',
+      data: formData,
+      options: Options(
+        contentType: 'multipart/form-data',
+      ),
+    );
+
+    return Map<String, dynamic>.from(response.data);
+  } on DioException catch (e) {
+  debugPrint("Status code: ${e.response?.statusCode}");
+  debugPrint("Response data: ${e.response?.data}");
+  debugPrint("Request URI: ${e.requestOptions.uri}");
+  debugPrint("Headers: ${e.requestOptions.headers}");
+  rethrow;
+}
+}
 }
