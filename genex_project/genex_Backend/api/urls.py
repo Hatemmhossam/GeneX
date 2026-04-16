@@ -1,7 +1,8 @@
 # api/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet
+from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet ,run_twin
+
 from .views import PatientSearchView
 from .views import send_patient_request # Import the new view
 from . import views  # <--- THIS LINE IS MISSING
@@ -11,6 +12,7 @@ from .views import GeneUploadView # Import the view we wrote earlier
 #from .views import GeneReportListView
 from .views import get_user_risk
 from .views import evaluate
+
 
 
 router = DefaultRouter()
@@ -23,6 +25,10 @@ urlpatterns = [
     path('signin/', signin),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('', include(router.urls)),   # <-- this adds /medicines/ endpoints
+
+    path('run-twin/', run_twin),
+
+
     path('search-patients/', PatientSearchView.as_view(), name='search-patients'),
     path('send-request/', send_patient_request, name='send-request'),
     path('patient/requests/', views.get_patient_requests, name='patient-requests'),
@@ -37,3 +43,4 @@ urlpatterns = [
     path('get-user-risk/<int:user_id>/', views.get_user_risk, name='get_user_risk'),
     path("evaluate/", evaluate),
 ]
+
