@@ -14,7 +14,6 @@ from .models import User, Medicine, SymptomReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
-from .services import run_twin_simulation
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
 # from .serializers import (
@@ -41,7 +40,7 @@ from rest_framework.response import Response
 from .models import GenePredictionReport
 from io import TextIOWrapper
 from .models import GeneExpressionFile
-from .services.drug_analysis import analyze_drug_with_file
+#from .services.drug_analysis import analyze_drug_with_file
 import json
 from .models import GeneExpressionFile
 # ✅ IMPORTS: Ensure all your models and serializers are here
@@ -589,7 +588,6 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .models import GeneExpressionFile
-from .services.drug_analysis import analyze_drug_with_file
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

@@ -28,7 +28,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
   Future<void> pickFile() async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv'],
+      allowedExtensions: ['csv', 'txt'],
     );
 
     if (picked != null) {
