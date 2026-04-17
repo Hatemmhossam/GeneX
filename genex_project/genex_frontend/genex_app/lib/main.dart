@@ -15,7 +15,7 @@ void main() {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends ConsumerWidget {
+class MyApp extends ConsumerWidget {  
   const MyApp({super.key});
 
   @override
