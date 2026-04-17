@@ -2,17 +2,16 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet ,run_twin
-
 from .views import PatientSearchView
 from .views import send_patient_request # Import the new view
 from . import views  # <--- THIS LINE IS MISSING
 from .views import check_drug_interaction
 from .views import analyze_drug
 from .views import GeneUploadView # Import the view we wrote earlier
-#from .views import GeneReportListView
+from .views import GeneReportListView
 from .views import get_user_risk
 from .views import evaluate
-
+import ml_api.views 
 
 
 router = DefaultRouter()
@@ -39,8 +38,10 @@ urlpatterns = [
     path("check-interaction/", check_drug_interaction, name="check_drug_interaction"),
     path('analyze-drug/', analyze_drug, name='analyze-drug'),
     path('gene-upload/', GeneUploadView.as_view(), name='gene-upload'),
-    #path('gene-reports/', GeneReportListView.as_view(), name='gene-reports'),
+    path('gene-reports/', GeneReportListView.as_view(), name='gene-reports'),
     path('get-user-risk/<int:user_id>/', views.get_user_risk, name='get_user_risk'),
     path("evaluate/", evaluate),
+    path('predict_xai/', ml_api.views.predict_xai, name='predict_xai'),
+
 ]
 

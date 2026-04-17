@@ -11,12 +11,12 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from .services import MLService
 
 from .models import User, Medicine, SymptomReport
-from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
+from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer,MedicalTestResultSerializer
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.views.decorators.csrf import csrf_exempt
 # ✅ IMPORTS: Ensure all your models and serializers are here
-from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
+from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun,MedicalTestResult
 # from .serializers import (
 #     UserSerializer, 
 #     MedicineSerializer, 
@@ -46,7 +46,7 @@ import json
 from .models import GeneExpressionFile
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient
-
+import shap
 from .models import GenePredictionReport
 
 from .serializers import (
@@ -55,6 +55,9 @@ from .serializers import (
     SymptomReportSerializer, 
     PatientSerializer
 )
+from .serializers import GeneReportSerializer
+
+
 
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
@@ -469,11 +472,11 @@ def get_my_patients(request):
 @permission_classes([IsAuthenticated])
 def get_patient_medical_details(request, patient_id):
     doctor_username = request.user.username
-    
+
     try:
         # 1. Get the Patient
         target_patient = User.objects.get(id=patient_id)
-        
+
         # 2. Check Permission
         has_access = DoctorPatient.objects.filter(
             doctor_username=doctor_username,
@@ -482,42 +485,78 @@ def get_patient_medical_details(request, patient_id):
         ).exists()
 
         if not has_access:
-            return Response({"error": "Access Denied"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "Access Denied"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # 3. Fetch Medicines
         medicines = Medicine.objects.filter(user=target_patient).values()
 
         # 4. Fetch Symptoms
-        raw_symptoms = SymptomReport.objects.filter(user=target_patient)
-        
-        # DEBUG PRINT: Verify count in terminal
+        raw_symptoms = SymptomReport.objects.filter(user=target_patient).order_by('-created_at')
+
         print(f"🔍 FOUND {raw_symptoms.count()} SYMPTOMS FOR {target_patient.username}")
 
         symptoms_data = []
         for s in raw_symptoms:
             symptoms_data.append({
                 "id": s.id,
-                # ✅ SEND BOTH KEYS so Flutter never misses it
-                "symptom": s.symptom_name,       
-                "symptom_name": s.symptom_name,  
+                "symptom": s.symptom_name,
+                "symptom_name": s.symptom_name,
                 "severity": s.severity,
                 "frequency": s.frequency,
                 "notes": s.notes,
                 "created_at": s.created_at,
             })
 
+        # 5. Fetch Medical Test Results
+        raw_test_results = MedicalTestResult.objects.filter(user=target_patient).order_by('-created_at')
+
+        print(f"🧪 FOUND {raw_test_results.count()} TEST RESULTS FOR {target_patient.username}")
+
+        test_results_data = []
+        for t in raw_test_results:
+            test_results_data.append({
+                "id": t.id,
+                "age": t.age,
+                "gender": t.gender,
+                "esr": t.esr,
+                "crp": t.crp,
+                "rf": t.rf,
+                "anti_ccp": t.anti_ccp,
+                "c3": t.c3,
+                "c4": t.c4,
+                "ana": t.ana,
+                "anti_sm": t.anti_sm,
+                "anti_ro": t.anti_ro,
+                "hla_b27": t.hla_b27,
+                "anti_la": t.anti_la,
+                "anti_dsdna": t.anti_dsdna,
+                "disease_prediction": t.disease_prediction,
+                "confidence": t.confidence,
+                "xai_explanation": t.xai_explanation,
+                "created_at": t.created_at,
+            })
+
         return Response({
             "patient_name": target_patient.first_name,
             "medicines": list(medicines),
-            "symptoms": symptoms_data 
+            "symptoms": symptoms_data,
+            "test_results": test_results_data,
         }, status=status.HTTP_200_OK)
 
     except User.DoesNotExist:
-        return Response({"error": "Patient not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"error": "Patient not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
     except Exception as e:
         print(f"❌ SERVER ERROR: {str(e)}")
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    # ... existing imports ...
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -651,70 +690,126 @@ class GeneUploadView(APIView):
             )
 
         try:
-            # 1. Preprocessing (Matches training pipeline)
+            # 1) Read CSV
             text_file = TextIOWrapper(file.file, encoding='utf-8')
+            df = pd.read_csv(text_file, sep=',')
 
-            df = pd.read_csv(
-                text_file,
-                sep=',',          # explicit separator (IMPORTANT)
-            )
-            df=df.apply(pd.to_numeric, errors='coerce')
+            # convert everything to numeric
+            df = df.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-            df=df.fillna(0)
-            df = df.reindex(columns=FEATURES, fill_value=0)            
-            # expected_genes = joblib.load("ml_asssets/gene_features.joblib")
-            expected_count = 2000
-            current_count = df.shape[1]
-            
-            if current_count < expected_count:
-                missing_cols = expected_count - current_count
-                # Create a DataFrame of zeros with generic names
-                extra_data = np.zeros((df.shape[0], missing_cols))
-                extra_df = pd.DataFrame(extra_data, index=df.index)
-                # Combine them
-                df = pd.concat([df, extra_df], axis=1)
+            if df.empty:
+                return Response(
+                    {"error": "Uploaded file is empty after preprocessing"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # keep only first row if multiple rows uploaded
+            # remove this if you want batch prediction instead
+            df = df.iloc[[0]].copy()
+
+            # 2) Align exactly to training features
+            df = df.reindex(columns=FEATURES, fill_value=0)
+
+            # validate final shape
+            if list(df.columns) != list(FEATURES):
+                return Response(
+                    {"error": "Uploaded gene expression file does not match model features"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 3) Apply same transform used in training
             df_log = np.log2(df + 1)
 
+            # 4) Convert to model input
+            X = df_log.to_numpy()
+
+            print("--- PREDICTION DEBUG ---")
+            print(f"User: {request.user}")
+            print(f"File: {file.name}")
+            print(f"Shape: {X.shape}")
+            print(f"Mean expression value: {X.mean()}")
+            print(f"Max expression value: {X.max()}")
+            print(f"Number of non-zero features: {np.count_nonzero(X)}")
+
+            # 5) Predict
+            probability = float(MODEL.predict_proba(X)[0][1])
+            risk_score = round(probability * 100, 2)
+            result_label = "High Risk" if risk_score > 50 else "Low Risk"
+
+            # 6) Save all aligned input features as pure Python JSON
+            input_features = {
+                str(col): float(val)
+                for col, val in df_log.iloc[0].to_dict().items()
+            }
+
+            # 7) Compute top affecting genes with SHAP
+            top_affecting_genes = {}
+            try:
+                explainer = shap.TreeExplainer(MODEL)
+                shap_values = explainer.shap_values(df_log)
+
+                # binary classification usually returns array shape (n_samples, n_features)
+                if isinstance(shap_values, list):
+                    sample_shap = shap_values[1][0]
+                else:
+                    sample_shap = shap_values[0]
+
+                shap_map = dict(zip(df_log.columns, sample_shap))
+                top_items = sorted(
+                    shap_map.items(),
+                    key=lambda x: abs(x[1]),
+                    reverse=True
+                )[:10]
+
+                top_affecting_genes = {
+                    str(k): float(v) for k, v in top_items
+                }
+
+            except Exception as shap_error:
+                print("SHAP ERROR:", str(shap_error))
+                top_affecting_genes = {}
+
+            # 8) Optional metrics
+            # These are model-level metrics, not per-sample metrics.
+            # Put real values here only if you want to save training/test metrics.
+            precision = None
+            recall = None
+            f1_score = None
+            confidence_interval = None
+
+            # 9) Save report
+            report = GenePredictionReport.objects.create(
+                patient=request.user,
+                risk_percentage=risk_score,
+                result_label=result_label,
+                file_name=file.name,
+                precision=precision,
+                recall=recall,
+                f1_score=f1_score,
+                confidence_interval=confidence_interval,
+                top_affecting_genes=top_affecting_genes,
+                input_features=input_features,
+            )
+
+            return Response(
+                {
+                    "percentage": report.risk_percentage,
+                    "label": report.result_label,
+                    "report_id": report.id,
+                    "filename": report.file_name,
+                    "date": report.created_at,
+                    "top_affecting_genes": report.top_affecting_genes,
+                },
+                status=status.HTTP_200_OK
+            )
+
         except Exception as e:
+            print("GENE UPLOAD ERROR:", str(e))
             return Response(
-                {"error": f"Gene processing failed: {str(e)}"},
-                status=400
+                {"error": f"Gene processing/prediction failed: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
-        # 2. Prediction
-        X = df_log.to_numpy()
-        probability = MODEL.predict_proba(X)[0][1]
-        print(f"Test Probability with max values: {probability}")
-        # Inside post method, after np.log2 transformation:
-        print(f"--- PREDICTION DEBUG ---")
-        print(f"File: {file.name}")
-        print(f"Mean expression value: {X.mean()}")
-        print(f"Max expression value: {X.max()}")
-        print(f"Number of non-zero features: {np.count_nonzero(X)}")
-
-
-        risk_score = round(float(probability) * 100, 2)
-
-        # 3. Save to DB (SAFE now because user is authenticated)
-        report = GenePredictionReport.objects.create(
-            patient=request.user,
-            risk_percentage=risk_score,
-            result_label="High Risk" if risk_score > 50 else "Low Risk",
-            file_name=file.name
-        )
-        if list(df_log.columns) != list(FEATURES):
-            return Response(
-                {"error": "Uploaded gene expression file does not match model features"},
-                status=400
-            )
-        return Response(
-            {
-                "percentage": risk_score,
-                "label": report.result_label,
-                "report_id": report.id
-            },
-            status=status.HTTP_200_OK
-        )
+            
 def get_user_risk(request, user_id):
     try:
         # ✅ Changed 'user_id' to 'patient_id' based on your error choices
@@ -755,3 +850,14 @@ def evaluate(request):
         )
 
         return JsonResponse(result)
+    
+    
+class GeneReportListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Get reports only for logged-in user
+        reports = GenePredictionReport.objects.filter(patient=request.user).order_by('-created_at')
+
+        serializer = GeneReportSerializer(reports, many=True)
+        return Response(serializer.data)
