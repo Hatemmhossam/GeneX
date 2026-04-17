@@ -10,6 +10,7 @@ import 'reports_screen.dart';
 
 import 'symptoms_screen.dart'; // 1. IMPORT YOUR NEW FILE
 import 'about_system_screen.dart';
+import 'dna_model_visualization.dart';
 
 class ResponsiveDashboard extends ConsumerStatefulWidget {
   const ResponsiveDashboard({super.key});
@@ -245,13 +246,24 @@ class DashboardOverview extends ConsumerWidget {
                       ? Colors.red
                       : Colors.green;
 
-                  return _medicalWidget(
-                    "Vitals Status",
-                    status,
-                    latestReport != null
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                    statusColor,
+                  return InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DnaModelVisualizationScreen(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: _medicalWidget(
+                      "Vitals Status",
+                      status,
+                      latestReport != null
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      statusColor,
+                    ),
                   );
                 },
                 loading: () => _medicalWidget(
@@ -271,8 +283,14 @@ class DashboardOverview extends ConsumerWidget {
               // --- CLICKABLE MEDS CARD ---
               medsAsync.when(
                 data: (meds) => InkWell(
-                  onTap: () =>
-                      ref.read(dashboardIndexProvider.notifier).state = 2,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MedHistoryScreen(),
+                      ),
+                    );
+                  },
                   borderRadius: BorderRadius.circular(12),
                   child: _medicalWidget(
                     "Active Meds",
@@ -297,8 +315,12 @@ class DashboardOverview extends ConsumerWidget {
 
               // --- REPORTS CARD ---
               InkWell(
-                onTap: () =>
-                    ref.read(dashboardIndexProvider.notifier).state = 7,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ReportsScreen()),
+                  );
+                },
                 borderRadius: BorderRadius.circular(12),
                 child: _medicalWidget(
                   "All Reports",

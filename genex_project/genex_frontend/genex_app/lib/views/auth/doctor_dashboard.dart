@@ -7,6 +7,7 @@ import '../../viewmodels/auth_viewmodel.dart';
 import '../doctor/user_search_view.dart';
 import '../doctor/see_accessed_patients.dart';
 import '../doctor/pending_patients_view.dart';
+import '../doctor/twin_preview_screen.dart'; // adjust path if needed
 
 class DoctorDashboard extends ConsumerStatefulWidget {
   const DoctorDashboard({super.key});
@@ -103,7 +104,9 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Text('Confirm Logout'),
           content: const Text(
             'Are you sure you want to log out of the GeneX portal?',
@@ -139,9 +142,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!_isAuthorized) return const SizedBox.shrink();
@@ -202,7 +203,9 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                     const SizedBox(width: 16),
                     _buildStatCard(
                       title: 'Pending Patients',
-                      value: _isStatsLoading ? '...' : pendingPatients.toString(),
+                      value: _isStatsLoading
+                          ? '...'
+                          : pendingPatients.toString(),
                       icon: Icons.hourglass_top_outlined,
                       onTap: () {
                         Navigator.push(
@@ -230,9 +233,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                   subtitle: 'View full patient directory',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const UserSearchView(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const UserSearchView()),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -253,10 +254,15 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                 _buildDashboardTile(
                   icon: Icons.science_outlined,
                   title: 'Twin Simulation Review',
-                  subtitle: 'Review patient simulations (coming soon)',
-                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Coming soon!')),
-                  ),
+                  subtitle: 'Review patient simulations',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TwinPreviewScreen(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -292,15 +298,9 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
           const SizedBox(height: 12),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
-          Text(
-            title,
-            style: TextStyle(color: Colors.grey[600], fontSize: 13),
-          ),
+          Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
         ],
       ),
     );
@@ -361,11 +361,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                 ],
               ),
             ),
-            const Icon(
-              Icons.arrow_forward_ios,
-              size: 14,
-              color: Colors.grey,
-            ),
+            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
           ],
         ),
       ),

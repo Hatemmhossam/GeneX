@@ -80,16 +80,16 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String resultLabel = report['result_label']?.toString() ?? 'Unknown';
+    final String resultLabel = report['label']?.toString() ?? 'Unknown';
     final bool isHighRisk = resultLabel.contains("High");
     final Color statusColor = isHighRisk ? Colors.redAccent : Colors.green;
 
     final double riskPercentage =
-        ((report['risk_percentage'] as num?)?.toDouble() ?? 0.0);
+        ((report['percentage'] as num?)?.toDouble() ?? 0.0);
 
-    final String fileName = report['file_name']?.toString() ?? 'Unknown';
+    final String fileName = report['filename']?.toString() ?? 'Unknown';
 
-    final String createdAt = report['created_at']?.toString() ?? '';
+    final String createdAt = report['date']?.toString() ?? '';
     final String formattedDate = createdAt.length >= 10
         ? createdAt.substring(0, 10)
         : createdAt;
