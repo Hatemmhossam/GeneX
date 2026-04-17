@@ -12,6 +12,8 @@ from .views import GeneReportListView
 from .views import get_user_risk
 from .views import evaluate
 import ml_api.views 
+from .views import save_report
+
 
 
 router = DefaultRouter()
@@ -42,6 +44,6 @@ urlpatterns = [
     path('get-user-risk/<int:user_id>/', views.get_user_risk, name='get_user_risk'),
     path("evaluate/", evaluate),
     path('predict_xai/', ml_api.views.predict_xai, name='predict_xai'),
-
+    path("save-report/",save_report),
 ]
 

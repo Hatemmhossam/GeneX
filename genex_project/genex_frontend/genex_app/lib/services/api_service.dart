@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import '../core/constants.dart';
 import '../core/secure_storage.dart';
 import '../models/user_model.dart';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
+
 import 'dart:typed_data';
+
 
 class ApiService {
   final Dio _dio;
@@ -30,6 +35,7 @@ class ApiService {
   /// Reads token from storage and updates headers automatically
   Future<void> _refreshAuthHeader() async {
     final token = await SecureStorage.readToken();
+    debugPrint("TOKEN: $token"); // 👈 ADD THIS
     if (token != null && token.isNotEmpty) {
       _dio.options.headers['Authorization'] = 'Bearer $token';
     } else {
@@ -223,6 +229,57 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> evaluateTwinSimulation({
+
+    required PlatformFile file,
+    required String drug1,
+    String? drug2,
+  }) async {
+    await _refreshAuthHeader();
+
+    try {
+      MultipartFile multipartFile;
+
+      if (kIsWeb) {
+        if (file.bytes == null) {
+          throw Exception("Web upload failed: file bytes are missing.");
+        }
+
+        multipartFile = MultipartFile.fromBytes(
+          file.bytes!,
+          filename: file.name,
+        );
+      } else {
+        if (file.path == null || file.path!.isEmpty) {
+          throw Exception("File path is missing.");
+        }
+
+        multipartFile = await MultipartFile.fromFile(
+          file.path!,
+          filename: file.name,
+        );
+      }
+
+      final formData = FormData.fromMap({
+        "file": multipartFile,
+        "drug1": drug1,
+        if (drug2 != null && drug2.trim().isNotEmpty) "drug2": drug2.trim(),
+      });
+
+      final response = await _dio.post(
+        'evaluate/',
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      debugPrint("Status code: ${e.response?.statusCode}");
+      debugPrint("Response data: ${e.response?.data}");
+      debugPrint("Request URI: ${e.requestOptions.uri}");
+      debugPrint("Headers: ${e.requestOptions.headers}");
+      rethrow;
+    }
+
   required Uint8List bytes,      // Changed from String filePath
   required String fileName,      // Added to give the file a name
   required String drug1,
@@ -254,6 +311,68 @@ class ApiService {
   } on DioException catch (e) {
     debugPrint("Twin API Error: ${e.response?.data ?? e.message}");
     rethrow;
+
   }
+
+// Future<void> saveTwinReport({
+//   required Map<String, dynamic> result,
+//   required String drug1,
+//   required String drug2,
+//   required String fileName,
+// }) async {
+//   await _refreshAuthHeader();
+
+//   final token = await SecureStorage.readToken();
+//   debugPrint("🔥 TOKEN USED = $token");
+
+//   if (token == null || token.isEmpty) {
+//     throw Exception("No token found. User is not logged in.");
+//   }
+
+//   try {
+//     final response = await _dio.post(
+//       'save-report/',
+//       data: {
+//         "drug1": drug1,
+//         "drug2": drug2,
+//         "file_name": fileName,
+//         "report_data": result,
+//       },
+//     );
+
+//     debugPrint("✅ SAVE SUCCESS: ${response.statusCode}");
+//   } catch (e) {
+//     debugPrint("❌ SAVE FAILED: $e");
+//     rethrow;
+//   }
+// }
+Future<void> saveTwinReport({
+  required Map<String, dynamic> result,
+  required String drug1,
+  required String drug2,
+  required String fileName,
+}) async {
+  await _refreshAuthHeader();
+
+  try {
+    final response = await _dio.post(
+      'save-report/',
+      data: {
+        "drug1": drug1,
+        "drug2": drug2,
+        "file_name": fileName,
+        "report_data": result,
+      },
+      options: Options(
+        contentType: Headers.jsonContentType,
+      ),
+    );
+
+    debugPrint("✅ SAVE SUCCESS: ${response.statusCode}");
+  } catch (e) {
+    debugPrint("❌ SAVE FAILED: $e");
+    rethrow;
+  }
+}
 }
 }
