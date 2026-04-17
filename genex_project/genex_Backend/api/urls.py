@@ -9,10 +9,11 @@ from . import views  # <--- THIS LINE IS MISSING
 from .views import check_drug_interaction
 from .views import analyze_drug
 from .views import GeneUploadView # Import the view we wrote earlier
-#from .views import GeneReportListView
+from .views import GeneReportListView
 from .views import get_user_risk
 from .views import evaluate
 from .views import save_report
+
 
 
 router = DefaultRouter()
@@ -39,9 +40,13 @@ urlpatterns = [
     path("check-interaction/", check_drug_interaction, name="check_drug_interaction"),
     path('analyze-drug/', analyze_drug, name='analyze-drug'),
     path('gene-upload/', GeneUploadView.as_view(), name='gene-upload'),
-    #path('gene-reports/', GeneReportListView.as_view(), name='gene-reports'),
+    path('gene-reports/', GeneReportListView.as_view(), name='gene-reports'),
+    path('doctor/dashboard-stats/', views.doctor_dashboard_stats),
+    path('doctor/pending-patients/', views.doctor_pending_patients),
     path('get-user-risk/<int:user_id>/', views.get_user_risk, name='get_user_risk'),
     path("evaluate/", evaluate),
     path("save-report/",save_report),
+  
 ]
+
 

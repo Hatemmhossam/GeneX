@@ -36,6 +36,7 @@ from .models import DrugInteraction
 import joblib
 import pandas as pd
 import numpy as np
+from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import GenePredictionReport
@@ -718,6 +719,70 @@ class GeneUploadView(APIView):
             },
             status=status.HTTP_200_OK
         )
+
+
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def doctor_dashboard_stats(request):
+    doctor_username = request.user.username
+
+    assigned_count = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status='accepted'
+    ).count()
+
+    pending_count = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status='pending'
+    ).count()
+
+    return Response({
+        "assigned_patients": assigned_count,
+        "pending_patients": pending_count
+    })
+
+
+User = get_user_model()
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def doctor_pending_patients(request):
+    doctor_username = request.user.username
+
+    pending_links = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status='pending'
+    )
+
+    patients_data = []
+
+    for link in pending_links:
+        patient_info = {
+            "id": None,
+            "username": link.patient_username,
+            "email": link.patient_username,
+            "appointment_date": link.appointment_date,
+            "status": link.status,
+        }
+
+        user = User.objects.filter(username=link.patient_username).first()
+        if user:
+            patient_info["id"] = user.id
+            patient_info["email"] = getattr(user, "email", link.patient_username) or link.patient_username
+            patient_info["first_name"] = getattr(user, "first_name", "")
+            patient_info["last_name"] = getattr(user, "last_name", "")
+
+        patients_data.append(patient_info)
+
+    return Response({
+        "count": len(patients_data),
+        "patients": patients_data
+    })
+
 def get_user_risk(request, user_id):
     try:
         # ✅ Changed 'user_id' to 'patient_id' based on your error choices
@@ -791,3 +856,4 @@ def save_report(request):
     except Exception as e:
         print("🔥 SAVE REPORT ERROR:", str(e))
         return JsonResponse({"error": str(e)}, status=500)
+
