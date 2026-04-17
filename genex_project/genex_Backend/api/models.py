@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from django.db import models
 
+
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('patient', 'Patient'),
@@ -108,3 +109,19 @@ class GenePredictionReport(models.Model):
     def __str__(self):
         return f"{self.patient.email} - {self.risk_percentage}%"
 
+
+class TwinSimulationReport(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    drug1 = models.CharField(max_length=255)
+    drug2 = models.CharField(max_length=255, blank=True, null=True)
+    file_name = models.CharField(max_length=255)
+
+    best_drug = models.CharField(max_length=255)
+    risk_reduction = models.FloatField(default=0)
+
+    full_report = models.JSONField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.best_drug}"

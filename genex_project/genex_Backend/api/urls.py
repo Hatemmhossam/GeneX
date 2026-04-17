@@ -12,7 +12,7 @@ from .views import GeneUploadView # Import the view we wrote earlier
 #from .views import GeneReportListView
 from .views import get_user_risk
 from .views import evaluate
-
+from .views import save_report
 
 
 router = DefaultRouter()
@@ -42,5 +42,6 @@ urlpatterns = [
     #path('gene-reports/', GeneReportListView.as_view(), name='gene-reports'),
     path('get-user-risk/<int:user_id>/', views.get_user_risk, name='get_user_risk'),
     path("evaluate/", evaluate),
+    path("save-report/",save_report),
 ]
 

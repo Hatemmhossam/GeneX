@@ -79,9 +79,30 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     } catch (e) {
       setState(() => loading = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    }
+  }
+
+  Future<void> saveReport() async {
+    if (result == null) return;
+
+    try {
+      await apiService.saveTwinReport(
+        result: result!,
+        drug1: drug1Controller.text.trim(),
+        drug2: drug2Controller.text.trim(),
+        fileName: selectedFile?.name ?? "",
       );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Report saved successfully")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Save failed: $e")));
     }
   }
 
@@ -119,10 +140,11 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
         prefixIcon: Icon(icon),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 16,
         ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -146,10 +168,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
           children: [
             const Text(
               "Twin Simulation",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             Text(
@@ -263,27 +282,17 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.analytics_outlined,
-            size: 48,
-            color: Colors.grey.shade500,
-          ),
+          Icon(Icons.analytics_outlined, size: 48, color: Colors.grey.shade500),
           const SizedBox(height: 12),
           const Text(
             "No evaluation yet",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Text(
             "Run the simulation and the results will appear here in a more readable format.",
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 13.5,
-            ),
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13.5),
           ),
         ],
       ),
@@ -319,10 +328,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: Colors.grey.shade700,
-                  ),
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -343,74 +349,26 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
   Widget buildSummaryTab() {
     if (result == null) return const SizedBox.shrink();
 
-    final List<Widget> cards = [];
+    final best = result!["best_recommendation"];
 
-    cards.add(
-      buildSummaryCard(
-        title: "Drug 1",
-        value: drug1Controller.text.trim().isEmpty
-            ? "-"
-            : drug1Controller.text.trim(),
-        icon: Icons.medication_rounded,
-      ),
-    );
-
-    cards.add(
-      buildSummaryCard(
-        title: "Drug 2",
-        value: drug2Controller.text.trim().isEmpty
-            ? "Not provided"
-            : drug2Controller.text.trim(),
-        icon: Icons.medication_outlined,
-      ),
-    );
-
-    cards.add(
-      buildSummaryCard(
-        title: "Selected File",
-        value: selectedFile?.name ?? "No file",
-        icon: Icons.file_present_rounded,
-      ),
-    );
-
-    cards.add(
-      buildSummaryCard(
-        title: "Top-Level Fields",
-        value: result!.length.toString(),
-        icon: Icons.dataset_outlined,
-      ),
-    );
-
-    for (final entry in result!.entries) {
-      final value = entry.value;
-      String displayValue;
-      IconData icon;
-
-      if (value is List) {
-        displayValue = "${value.length} item(s)";
-        icon = Icons.list_alt_rounded;
-      } else if (value is Map) {
-        displayValue = "${value.length} field(s)";
-        icon = Icons.account_tree_outlined;
-      } else {
-        displayValue = value?.toString() ?? "-";
-        icon = Icons.info_outline_rounded;
-      }
-
-      cards.add(
-        buildSummaryCard(
-          title: formatKey(entry.key),
-          value: displayValue,
-          icon: icon,
-        ),
-      );
+    if (best == null) {
+      return const Center(child: Text("No best recommendation found"));
     }
 
-    return ListView.separated(
-      physics: const BouncingScrollPhysics(),
-      itemCount: cards.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, index) => cards[index],
+    return ListView(
+      children: [
+        buildSummaryCard(
+          title: "Best Drug",
+          value: best["drug"]?.toString() ?? "-",
+          icon: Icons.star_rounded,
+        ),
+        const SizedBox(height: 12),
+        buildSummaryCard(
+          title: "Risk Reduction (%)",
+          value: best["risk_reduction"]?.toStringAsFixed(2)?? "-",
+          icon: Icons.trending_down_rounded,
+        ),
+      ],
     );
   }
 
@@ -568,38 +526,8 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (_, index) {
         final entry = result!.entries.elementAt(index);
-        return buildStructuredBlock(
-          title: entry.key,
-          value: entry.value,
-        );
+        return buildStructuredBlock(title: entry.key, value: entry.value);
       },
-    );
-  }
-
-  Widget buildRawJsonTab() {
-    if (result == null) return const SizedBox.shrink();
-
-    final prettyJson = const JsonEncoder.withIndent('  ').convert(result);
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xff111827),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: SelectableText(
-          prettyJson,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            height: 1.45,
-            fontFamily: 'monospace',
-          ),
-        ),
-      ),
     );
   }
 
@@ -607,7 +535,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     return SizedBox(
       height: getResultSectionHeight(context),
       child: DefaultTabController(
-        length: 3,
+        length: 2,
         child: Column(
           children: [
             Container(
@@ -623,18 +551,13 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
                 tabs: [
                   Tab(text: "Summary"),
                   Tab(text: "Details"),
-                  Tab(text: "Raw JSON"),
                 ],
               ),
             ),
             const SizedBox(height: 14),
             Expanded(
               child: TabBarView(
-                children: [
-                  buildSummaryTab(),
-                  buildDetailsTab(),
-                  buildRawJsonTab(),
-                ],
+                children: [buildSummaryTab(), buildDetailsTab()],
               ),
             ),
           ],
@@ -647,10 +570,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffF6F8FB),
-      appBar: AppBar(
-        elevation: 0,
-        title: const Text("Twin Simulation"),
-      ),
+      appBar: AppBar(elevation: 0, title: const Text("Twin Simulation")),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -660,7 +580,22 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
             children: [
               buildTopSection(),
               const SizedBox(height: 16),
-              if (result != null) buildResultSection() else buildEmptyState(),
+              if (result != null) ...[
+                buildResultSection(),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: saveReport,
+                  icon: const Icon(Icons.save_alt_rounded),
+                  label: const Text("Save Report"),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ] else
+                buildEmptyState(),
               const SizedBox(height: 16),
             ],
           ),
