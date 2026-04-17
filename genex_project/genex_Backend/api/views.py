@@ -38,6 +38,7 @@ from .models import DrugInteraction
 import joblib
 import pandas as pd
 import numpy as np
+from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import GenePredictionReport
@@ -708,52 +709,58 @@ def analyze_drug(request):
 
 MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
 FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
-
 class GeneUploadView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        file = request.FILES.get('file')
+        file = request.FILES.get("file")
 
         if not file:
             return Response(
                 {"error": "No file uploaded"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Optional: restrict upload type
+        if not file.name.lower().endswith(".csv"):
+            return Response(
+                {"error": "Only CSV files are supported"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             # 1) Read CSV
-            text_file = TextIOWrapper(file.file, encoding='utf-8')
-            df = pd.read_csv(text_file, sep=',')
+            text_file = TextIOWrapper(file.file, encoding="utf-8")
+            df = pd.read_csv(text_file, sep=",")
 
-            # convert everything to numeric
-            df = df.apply(pd.to_numeric, errors='coerce').fillna(0)
+            # 2) Convert everything to numeric
+            df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
 
             if df.empty:
                 return Response(
                     {"error": "Uploaded file is empty after preprocessing"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # keep only first row if multiple rows uploaded
-            # remove this if you want batch prediction instead
+            # 3) Keep only first row
+            # Remove this if you want batch prediction later
             df = df.iloc[[0]].copy()
 
-            # 2) Align exactly to training features
+            # 4) Align exactly to training features
             df = df.reindex(columns=FEATURES, fill_value=0)
 
-            # validate final shape
+            # 5) Validate final shape/order
             if list(df.columns) != list(FEATURES):
                 return Response(
                     {"error": "Uploaded gene expression file does not match model features"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # 3) Apply same transform used in training
+            # 6) Apply same transform used in training
             df_log = np.log2(df + 1)
 
-            # 4) Convert to model input
+            # 7) Convert to model input
             X = df_log.to_numpy()
 
             print("--- PREDICTION DEBUG ---")
@@ -764,53 +771,51 @@ class GeneUploadView(APIView):
             print(f"Max expression value: {X.max()}")
             print(f"Number of non-zero features: {np.count_nonzero(X)}")
 
-            # 5) Predict
+            # 8) Predict
             probability = float(MODEL.predict_proba(X)[0][1])
             risk_score = round(probability * 100, 2)
             result_label = "High Risk" if risk_score > 50 else "Low Risk"
 
-            # 6) Save all aligned input features as pure Python JSON
+            # 9) Save aligned input features as JSON-serializable dict
             input_features = {
                 str(col): float(val)
                 for col, val in df_log.iloc[0].to_dict().items()
             }
 
-            # 7) Compute top affecting genes with SHAP
+            # 10) Compute top affecting genes with SHAP
             top_affecting_genes = {}
             try:
                 explainer = shap.TreeExplainer(MODEL)
                 shap_values = explainer.shap_values(df_log)
 
-                # binary classification usually returns array shape (n_samples, n_features)
                 if isinstance(shap_values, list):
                     sample_shap = shap_values[1][0]
                 else:
+                    # Handles array output directly
                     sample_shap = shap_values[0]
 
                 shap_map = dict(zip(df_log.columns, sample_shap))
                 top_items = sorted(
                     shap_map.items(),
                     key=lambda x: abs(x[1]),
-                    reverse=True
+                    reverse=True,
                 )[:10]
 
                 top_affecting_genes = {
-                    str(k): float(v) for k, v in top_items
+                    str(gene): float(value) for gene, value in top_items
                 }
 
             except Exception as shap_error:
                 print("SHAP ERROR:", str(shap_error))
                 top_affecting_genes = {}
 
-            # 8) Optional metrics
-            # These are model-level metrics, not per-sample metrics.
-            # Put real values here only if you want to save training/test metrics.
+            # 11) Optional model-level metrics
             precision = None
             recall = None
             f1_score = None
             confidence_interval = None
 
-            # 9) Save report
+            # 12) Save report
             report = GenePredictionReport.objects.create(
                 patient=request.user,
                 risk_percentage=risk_score,
@@ -833,40 +838,110 @@ class GeneUploadView(APIView):
                     "date": report.created_at,
                     "top_affecting_genes": report.top_affecting_genes,
                 },
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
             )
 
         except Exception as e:
             print("GENE UPLOAD ERROR:", str(e))
             return Response(
                 {"error": f"Gene processing/prediction failed: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-            
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def doctor_dashboard_stats(request):
+    doctor_username = request.user.username
+
+    assigned_count = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status="accepted",
+    ).count()
+
+    pending_count = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status="pending",
+    ).count()
+
+    return Response({
+        "assigned_patients": assigned_count,
+        "pending_patients": pending_count,
+    })
+
+
+User = get_user_model()
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def doctor_pending_patients(request):
+    doctor_username = request.user.username
+
+    pending_links = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status="pending",
+    )
+
+    patients_data = []
+
+    for link in pending_links:
+        patient_info = {
+            "id": None,
+            "username": link.patient_username,
+            "email": link.patient_username,
+            "appointment_date": link.appointment_date,
+            "status": link.status,
+            "first_name": "",
+            "last_name": "",
+        }
+
+        user = User.objects.filter(username=link.patient_username).first()
+        if user:
+            patient_info["id"] = user.id
+            patient_info["email"] = getattr(user, "email", link.patient_username) or link.patient_username
+            patient_info["first_name"] = getattr(user, "first_name", "")
+            patient_info["last_name"] = getattr(user, "last_name", "")
+
+        patients_data.append(patient_info)
+
+    return Response({
+        "count": len(patients_data),
+        "patients": patients_data,
+    })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_user_risk(request, user_id):
     try:
-        # ✅ Changed 'user_id' to 'patient_id' based on your error choices
-        prediction = GenePredictionReport.objects.filter(patient_id=user_id).latest('created_at')
-        
+        prediction = GenePredictionReport.objects.filter(
+            patient_id=user_id
+        ).latest("created_at")
+
         return JsonResponse({
             "status": "success",
-            "risk_percentage": prediction.risk_percentage 
+            "risk_percentage": prediction.risk_percentage,
         })
+
     except GenePredictionReport.DoesNotExist:
-        return JsonResponse({"status": "error", "message": "No data found for this patient"}, status=404)
+        return JsonResponse(
+            {"status": "error", "message": "No data found for this patient"},
+            status=404,
+        )
+
 
 ml_service = MLService()
 
+
 @csrf_exempt
 def evaluate(request):
-      # ✅ browser test
     if request.method == "GET":
         return JsonResponse({
             "message": "API is working. Use POST with file + drug1 + optional drug2."
         })
 
     if request.method == "POST":
-
         file = request.FILES.get("file")
         drug1 = request.POST.get("drug1")
         drug2 = request.POST.get("drug2")
@@ -874,36 +949,44 @@ def evaluate(request):
         if file is None:
             return JsonResponse({"error": "file required"}, status=400)
 
-        patient_df = pd.read_csv(file)
+        try:
+            patient_df = pd.read_csv(file)
 
-        result = ml_service.evaluate(
-            drug1=drug1,
-            drug2=drug2,
-            patient_df=patient_df
-        )
+            result = ml_service.evaluate(
+                drug1=drug1,
+                drug2=drug2,
+                patient_df=patient_df,
+            )
 
-        return JsonResponse(result)
-    
-    
+            return JsonResponse(result)
+
+        except Exception as e:
+            print("EVALUATE ERROR:", str(e))
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
 class GeneReportListView(APIView):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Get reports only for logged-in user
-        reports = GenePredictionReport.objects.filter(patient=request.user).order_by('-created_at')
+        reports = GenePredictionReport.objects.filter(
+            patient=request.user
+        ).order_by("-created_at")
 
         serializer = GeneReportSerializer(reports, many=True)
         return Response(serializer.data)
 
-@api_view(['POST'])
+
+@api_view(["POST"])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def save_report(request):
     try:
-        data = request.data  # 🔥 IMPORTANT FIX (DO NOT use json.loads)
-
+        data = request.data
         report = data.get("report_data") or {}
-
         best = report.get("best_recommendation") or {}
 
         best_drug = best.get("drug", "NO_SAFE_DRUG")
@@ -921,10 +1004,9 @@ def save_report(request):
 
         return JsonResponse({
             "status": "success",
-            "report_id": saved.id
+            "report_id": saved.id,
         })
 
     except Exception as e:
         print("🔥 SAVE REPORT ERROR:", str(e))
         return JsonResponse({"error": str(e)}, status=500)
-
