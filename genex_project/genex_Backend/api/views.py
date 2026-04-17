@@ -10,7 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .services import MLService
 
-from .models import User, Medicine, SymptomReport
+from .models import User, Medicine, SymptomReport,TwinSimulationReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -48,6 +48,9 @@ from .models import GeneExpressionFile
 from .models import User, Medicine, SymptomReport, DoctorPatient
 
 from .models import GenePredictionReport
+
+#for test 
+from django.views.decorators.csrf import csrf_exempt
 
 from .serializers import (
     UserSerializer, 
@@ -755,3 +758,36 @@ def evaluate(request):
         )
 
         return JsonResponse(result)
+    
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def save_report(request):
+    try:
+        data = request.data  # 🔥 IMPORTANT FIX (DO NOT use json.loads)
+
+        report = data.get("report_data") or {}
+
+        best = report.get("best_recommendation") or {}
+
+        best_drug = best.get("drug", "NO_SAFE_DRUG")
+        risk_reduction = best.get("risk_reduction", 0)
+
+        saved = TwinSimulationReport.objects.create(
+            user=request.user,
+            drug1=data.get("drug1", ""),
+            drug2=data.get("drug2", ""),
+            file_name=data.get("file_name", ""),
+            best_drug=best_drug,
+            risk_reduction=risk_reduction,
+            full_report=report,
+        )
+
+        return JsonResponse({
+            "status": "success",
+            "report_id": saved.id
+        })
+
+    except Exception as e:
+        print("🔥 SAVE REPORT ERROR:", str(e))
+        return JsonResponse({"error": str(e)}, status=500)
