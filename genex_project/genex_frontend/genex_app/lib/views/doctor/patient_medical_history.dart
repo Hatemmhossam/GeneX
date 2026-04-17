@@ -23,6 +23,8 @@ class _PatientMedicalHistoryScreenState
   List<dynamic> medicines = [];
   List<dynamic> symptoms = [];
   List<dynamic> testResults = [];
+  List<dynamic> geneReports = [];
+
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -55,6 +57,7 @@ class _PatientMedicalHistoryScreenState
           medicines = data['medicines'] ?? [];
           symptoms = data['symptoms'] ?? [];
           testResults = data['test_results'] ?? [];
+          geneReports = data['gene_prediction_reports'] ?? [];
           _errorMessage = null;
           _isLoading = false;
         });
@@ -203,6 +206,22 @@ class _PatientMedicalHistoryScreenState
     return "${val.toStringAsFixed(1)}%";
   }
 
+  String _formatRiskPercentage(dynamic value) {
+    if (value == null) return '-';
+    final double val = (value as num).toDouble();
+    return "${val.toStringAsFixed(1)}%";
+  }
+
+  String _formatMetric(dynamic value) {
+    if (value == null) return '-';
+    final double val = (value as num).toDouble();
+
+    if (val <= 1) {
+      return (val * 100).toStringAsFixed(1) + "%";
+    }
+    return val.toStringAsFixed(1) + "%";
+  }
+
   Widget _sectionTitle(String title, IconData icon, Color color) {
     return Row(
       children: [
@@ -326,7 +345,7 @@ class _PatientMedicalHistoryScreenState
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "Review medicines, symptoms, test results, and doctor notes.",
+                  "Review medicines, symptoms, test results, gene reports, and doctor notes.",
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.92),
                     fontSize: 13,
@@ -664,6 +683,186 @@ class _PatientMedicalHistoryScreenState
     );
   }
 
+  Widget _buildGeneReportsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(
+          "Gene Expression Reports",
+          Icons.analytics_outlined,
+          Colors.purple,
+        ),
+        const SizedBox(height: 14),
+        geneReports.isEmpty
+            ? _emptyState(
+                "No gene expression reports recorded.",
+                Icons.insert_chart_outlined_rounded,
+                Colors.purple,
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: geneReports.length,
+                itemBuilder: (context, index) {
+                  final report = geneReports[index];
+                  final topGenes = report['top_affecting_genes'];
+                  final inputFeatures = report['input_features'];
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 14,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Theme(
+                      data: Theme.of(
+                        context,
+                      ).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          16,
+                        ),
+                        leading: CircleAvatar(
+                          radius: 24,
+                          backgroundColor: Colors.purple.withOpacity(0.12),
+                          child: const Icon(
+                            Icons.analytics_outlined,
+                            color: Colors.purple,
+                          ),
+                        ),
+                        title: Text(
+                          report['result_label'] ?? 'Unknown Result',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            "Risk: ${_formatRiskPercentage(report['risk_percentage'])}",
+                            style: TextStyle(color: Colors.grey.shade700),
+                          ),
+                        ),
+                        children: [
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              _infoChip(
+                                "Risk",
+                                _formatRiskPercentage(
+                                  report['risk_percentage'],
+                                ),
+                                color: Colors.purple,
+                              ),
+                              _infoChip(
+                                "Precision",
+                                _formatMetric(report['precision']),
+                                color: Colors.indigo,
+                              ),
+                              _infoChip(
+                                "Recall",
+                                _formatMetric(report['recall']),
+                                color: Colors.deepPurple,
+                              ),
+                              _infoChip(
+                                "F1 Score",
+                                _formatMetric(report['f1_score']),
+                                color: Colors.pink,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.purple.shade100),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "File Name: ${report['file_name'] ?? '-'}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Confidence Interval: ${report['risk_percentage'] ?? '-'}",
+                                  style: TextStyle(color: Colors.grey.shade800),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Created At: ${_formatDate(report['created_at'])}",
+                                  style: TextStyle(color: Colors.grey.shade800),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Top Affecting Genes",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  topGenes == null
+                                      ? "No genes available"
+                                      : const JsonEncoder.withIndent(
+                                          '  ',
+                                        ).convert(topGenes),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ],
+    );
+  }
+
   Widget _buildErrorState() {
     return Center(
       child: Padding(
@@ -770,6 +969,8 @@ class _PatientMedicalHistoryScreenState
                     _buildSymptomsSection(),
                     const SizedBox(height: 28),
                     _buildTestsSection(),
+                    const SizedBox(height: 28),
+                    _buildGeneReportsSection(),
                     const SizedBox(height: 20),
                   ],
                 ),

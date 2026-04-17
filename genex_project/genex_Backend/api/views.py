@@ -499,7 +499,9 @@ def get_patient_medical_details(request, patient_id):
         medicines = Medicine.objects.filter(user=target_patient).values()
 
         # 4. Fetch Symptoms
-        raw_symptoms = SymptomReport.objects.filter(user=target_patient).order_by('-created_at')
+        raw_symptoms = SymptomReport.objects.filter(
+            user=target_patient
+        ).order_by('-created_at')
 
         print(f"🔍 FOUND {raw_symptoms.count()} SYMPTOMS FOR {target_patient.username}")
 
@@ -516,7 +518,9 @@ def get_patient_medical_details(request, patient_id):
             })
 
         # 5. Fetch Medical Test Results
-        raw_test_results = MedicalTestResult.objects.filter(user=target_patient).order_by('-created_at')
+        raw_test_results = MedicalTestResult.objects.filter(
+            user=target_patient
+        ).order_by('-created_at')
 
         print(f"🧪 FOUND {raw_test_results.count()} TEST RESULTS FOR {target_patient.username}")
 
@@ -544,11 +548,35 @@ def get_patient_medical_details(request, patient_id):
                 "created_at": t.created_at,
             })
 
+        # 6. Fetch Gene Prediction Reports
+        raw_gene_reports = GenePredictionReport.objects.filter(
+            patient=target_patient
+        ).order_by('-created_at')
+
+        print(f"🧬 FOUND {raw_gene_reports.count()} GENE REPORTS FOR {target_patient.username}")
+
+        gene_reports_data = []
+        for g in raw_gene_reports:
+            gene_reports_data.append({
+                "id": g.id,
+                "risk_percentage": g.risk_percentage,
+                "result_label": g.result_label,
+                "file_name": g.file_name,
+                "created_at": g.created_at,
+                "precision": g.precision,
+                "recall": g.recall,
+                "f1_score": g.f1_score,
+                "confidence_interval": g.confidence_interval,
+                "top_affecting_genes": g.top_affecting_genes,
+                "input_features": g.input_features,
+            })
+
         return Response({
             "patient_name": target_patient.first_name,
             "medicines": list(medicines),
             "symptoms": symptoms_data,
             "test_results": test_results_data,
+            "gene_prediction_reports": gene_reports_data,
         }, status=status.HTTP_200_OK)
 
     except User.DoesNotExist:

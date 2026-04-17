@@ -1,10 +1,9 @@
 import 'dart:convert';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../../services/api_service.dart';
-import 'dart:typed_data';
 
 class TwinSimulationScreen extends StatefulWidget {
   const TwinSimulationScreen({super.key});
@@ -14,54 +13,69 @@ class TwinSimulationScreen extends StatefulWidget {
 }
 
 class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
+  String selectedMode = "drug_gene"; // drug_gene / drug_drug
+
+  // =========================
+  // DRUG TO GENE
+  // =========================
   PlatformFile? selectedFile;
 
-  final TextEditingController drug1Controller = TextEditingController();
-  final TextEditingController drug2Controller = TextEditingController();
+  final TextEditingController geneDrug1Controller = TextEditingController();
+  final TextEditingController geneDrug2Controller = TextEditingController();
 
   Map<String, dynamic>? result;
   bool loading = false;
 
   final ApiService apiService = ApiService();
 
+  // =========================
+  // DRUG TO DRUG
+  // =========================
+  final TextEditingController interactionDrug1Controller =
+      TextEditingController();
+  final TextEditingController interactionDrug2Controller =
+      TextEditingController();
+
+  String interactionResult = '';
+  bool isInteractionLoading = false;
 
   @override
   void dispose() {
-    drug1Controller.dispose();
-    drug2Controller.dispose();
+    geneDrug1Controller.dispose();
+    geneDrug2Controller.dispose();
+    interactionDrug1Controller.dispose();
+    interactionDrug2Controller.dispose();
     super.dispose();
   }
 
-  // -------------------------
-  // PICK CSV FILE
-  // -------------------------
-  Uint8List? fileBytes; // Add this to your state variables
-  String? fileName;
-
+  // =========================
+  // DRUG TO GENE LOGIC
+  // =========================
   Future<void> pickFile() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv', 'txt'],
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'txt'],
+        withData: kIsWeb,
+      );
 
-      withData: kIsWeb,
+      if (picked != null && picked.files.isNotEmpty) {
+        if (!mounted) return;
 
-    );
+        setState(() {
+          selectedFile = picked.files.single;
+        });
 
-    if (picked != null && picked.files.isNotEmpty) {
-      setState(() {
-
-        selectedFile = picked.files.single;
-
-        fileBytes = picked.files.first.bytes;
-        fileName = picked.files.first.name;
-        // path will be null on web, so we don't rely on it anymore
-        filePath = picked.files.first.name;
-
-      });
-
-      debugPrint("Picked file: ${selectedFile?.name}");
-      debugPrint("Picked path: ${selectedFile?.path}");
-      debugPrint("Picked bytes: ${selectedFile?.bytes?.length}");
+        debugPrint("Picked file: ${selectedFile?.name}");
+        debugPrint("Picked path: ${selectedFile?.path}");
+        debugPrint("Picked bytes length: ${selectedFile?.bytes?.length}");
+        debugPrint("Picked size: ${selectedFile?.size}");
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("File selection failed: $e")));
     }
   }
 
@@ -73,7 +87,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
       return;
     }
 
-    if (drug1Controller.text.trim().isEmpty) {
+    if (geneDrug1Controller.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please enter at least Drug 1.")),
       );
@@ -83,24 +97,24 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     setState(() => loading = true);
 
     try {
-      final res = await apiService.evaluateTwinSimulation(
+      final res = await apiService
+          .evaluateTwinSimulation(
+            file: selectedFile!,
+            drug1: geneDrug1Controller.text.trim(),
+            drug2: geneDrug2Controller.text.trim(),
+          )
+          .timeout(const Duration(seconds: 30));
 
-        file: selectedFile!,
-
-        bytes: fileBytes!, // The Uint8List you picked
-        fileName: fileName!, // The name of the file
-
-        drug1: drug1Controller.text.trim(),
-        drug2: drug2Controller.text.trim(),
-      );
+      if (!mounted) return;
 
       setState(() {
         result = res;
         loading = false;
       });
     } catch (e) {
-      setState(() => loading = false);
+      if (!mounted) return;
 
+      setState(() => loading = false);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Error: $e")));
@@ -113,8 +127,8 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     try {
       await apiService.saveTwinReport(
         result: result!,
-        drug1: drug1Controller.text.trim(),
-        drug2: drug2Controller.text.trim(),
+        drug1: geneDrug1Controller.text.trim(),
+        drug2: geneDrug2Controller.text.trim(),
         fileName: selectedFile?.name ?? "",
       );
 
@@ -128,6 +142,60 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     }
   }
 
+  // =========================
+  // DRUG TO DRUG LOGIC
+  // =========================
+  Future<void> checkInteraction() async {
+    final drug1 = interactionDrug1Controller.text.trim();
+    final drug2 = interactionDrug2Controller.text.trim();
+
+    if (drug1.isEmpty || drug2.isEmpty) {
+      setState(() {
+        interactionResult = 'Please enter both drug names.';
+      });
+      return;
+    }
+
+    setState(() {
+      isInteractionLoading = true;
+      interactionResult = '';
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/api/check-interaction/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'drug1': drug1, 'drug2': drug2}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      setState(() {
+        if (response.statusCode == 200) {
+          if (data['found'] == true) {
+            interactionResult =
+                'Interaction found:\n\n${data['drug1']} + ${data['drug2']}\n\n${data['description']}';
+          } else {
+            interactionResult = data['message'] ?? 'No interaction found.';
+          }
+        } else {
+          interactionResult = data['error'] ?? 'Something went wrong.';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        interactionResult = 'Error: $e';
+      });
+    } finally {
+      setState(() {
+        isInteractionLoading = false;
+      });
+    }
+  }
+
+  // =========================
+  // HELPERS
+  // =========================
   String formatKey(String key) {
     return key
         .replaceAll('_', ' ')
@@ -147,6 +215,80 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     if (screenHeight < 700) return 500;
     if (screenHeight < 850) return 580;
     return 650;
+  }
+
+  Widget buildModeSelector() {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedMode = "drug_gene";
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: selectedMode == "drug_gene"
+                      ? Colors.blue.shade600
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  "Drug to Gene Interaction",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: selectedMode == "drug_gene"
+                        ? Colors.white
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedMode = "drug_drug";
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: selectedMode == "drug_drug"
+                      ? Colors.blue.shade600
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  "Drug to Drug Interaction",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: selectedMode == "drug_drug"
+                        ? Colors.white
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget buildInputField({
@@ -175,7 +317,10 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     );
   }
 
-  Widget buildTopSection() {
+  // =========================
+  // DRUG TO GENE UI
+  // =========================
+  Widget buildDrugGeneSection() {
     return Card(
       elevation: 0,
       color: Colors.white,
@@ -189,7 +334,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Twin Simulation",
+              "Drug to Gene Interaction",
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
@@ -248,13 +393,13 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
             ],
             const SizedBox(height: 16),
             buildInputField(
-              controller: drug1Controller,
+              controller: geneDrug1Controller,
               label: "Drug 1",
               icon: Icons.medication_rounded,
             ),
             const SizedBox(height: 12),
             buildInputField(
-              controller: drug2Controller,
+              controller: geneDrug2Controller,
               label: "Drug 2",
               icon: Icons.medication_outlined,
               optional: true,
@@ -387,7 +532,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
         const SizedBox(height: 12),
         buildSummaryCard(
           title: "Risk Reduction (%)",
-          value: best["risk_reduction"]?.toStringAsFixed(2)?? "-",
+          value: best["risk_reduction"]?.toStringAsFixed(2) ?? "-",
           icon: Icons.trending_down_rounded,
         ),
       ],
@@ -588,8 +733,112 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     );
   }
 
+  // =========================
+  // DRUG TO DRUG UI
+  // =========================
+  Widget buildDrugDrugSection() {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Drug to Drug Interaction",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "Enter two drug names to check whether there is an interaction between them.",
+              style: TextStyle(
+                fontSize: 13.5,
+                color: Colors.grey.shade700,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 18),
+            buildInputField(
+              controller: interactionDrug1Controller,
+              label: "Enter first drug",
+              icon: Icons.medication_rounded,
+            ),
+            const SizedBox(height: 12),
+            buildInputField(
+              controller: interactionDrug2Controller,
+              label: "Enter second drug",
+              icon: Icons.medication_outlined,
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isInteractionLoading ? null : checkInteraction,
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: isInteractionLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      )
+                    : const Text(
+                        "Check Interaction",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: 180),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: SingleChildScrollView(
+                child: Text(
+                  interactionResult.isEmpty
+                      ? "The interaction result will appear here."
+                      : interactionResult,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: interactionResult.isEmpty
+                        ? Colors.grey.shade600
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================
+  // MAIN BUILD
+  // =========================
   @override
   Widget build(BuildContext context) {
+    final bool isDrugGeneMode = selectedMode == "drug_gene";
+
     return Scaffold(
       backgroundColor: const Color(0xffF6F8FB),
       appBar: AppBar(elevation: 0, title: const Text("Twin Simulation")),
@@ -600,24 +849,31 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              buildTopSection(),
+              buildModeSelector(),
               const SizedBox(height: 16),
-              if (result != null) ...[
-                buildResultSection(),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: saveReport,
-                  icon: const Icon(Icons.save_alt_rounded),
-                  label: const Text("Save Report"),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+              if (isDrugGeneMode)
+                buildDrugGeneSection()
+              else
+                buildDrugDrugSection(),
+              const SizedBox(height: 16),
+              if (isDrugGeneMode) ...[
+                if (result != null) ...[
+                  buildResultSection(),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: saveReport,
+                    icon: const Icon(Icons.save_alt_rounded),
+                    label: const Text("Save Report"),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
-                ),
-              ] else
-                buildEmptyState(),
+                ] else
+                  buildEmptyState(),
+              ],
               const SizedBox(height: 16),
             ],
           ),
