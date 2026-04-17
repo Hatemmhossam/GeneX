@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import '../core/constants.dart';
 import '../core/secure_storage.dart';
 import '../models/user_model.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+
+import 'dart:typed_data';
+
 
 class ApiService {
   final Dio _dio;
@@ -225,6 +229,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> evaluateTwinSimulation({
+
     required PlatformFile file,
     required String drug1,
     String? drug2,
@@ -274,6 +279,39 @@ class ApiService {
       debugPrint("Headers: ${e.requestOptions.headers}");
       rethrow;
     }
+
+  required Uint8List bytes,      // Changed from String filePath
+  required String fileName,      // Added to give the file a name
+  required String drug1,
+  String? drug2,
+}) async {
+  await _refreshAuthHeader();
+
+  try {
+    FormData formData = FormData.fromMap({
+      // We use fromBytes because 'fromFile' crashes on Web
+      "file": MultipartFile.fromBytes(
+        bytes, 
+        filename: fileName,
+      ),
+      "drug1": drug1,
+      if (drug2 != null && drug2.isNotEmpty) "drug2": drug2,
+    });
+
+    final response = await _dio.post(
+      'evaluate/', 
+      data: formData,
+      options: Options(
+        contentType: 'multipart/form-data',
+        // Optional: Sometimes Dio needs followRedirects: true for multipart
+      ),
+    );
+
+    return Map<String, dynamic>.from(response.data);
+  } on DioException catch (e) {
+    debugPrint("Twin API Error: ${e.response?.data ?? e.message}");
+    rethrow;
+
   }
 
 // Future<void> saveTwinReport({
@@ -335,5 +373,6 @@ Future<void> saveTwinReport({
     debugPrint("❌ SAVE FAILED: $e");
     rethrow;
   }
+}
 }
 }

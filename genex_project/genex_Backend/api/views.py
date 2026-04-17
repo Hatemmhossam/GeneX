@@ -14,6 +14,7 @@ from .models import User, Medicine, SymptomReport,TwinSimulationReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.views.decorators.csrf import csrf_exempt
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
 # from .serializers import (

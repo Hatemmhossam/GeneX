@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../core/secure_storage.dart'; // Ensure this path matches your project structure
 import '../../core/constants.dart'; // Ensure this path matches your project structure
 
-enum UploadType { vcf, geneExpression, tests }
+enum UploadType { vcf, geneExpression, tests, mri }
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -268,6 +268,7 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
       case UploadType.vcf: return "Upload VCF File";
       case UploadType.geneExpression: return "Upload Gene Expression File";
       case UploadType.tests: return "Enter Medical Tests";
+      case UploadType.mri: return "Enter MRI";
     }
   }
 
@@ -297,6 +298,7 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
                       DropdownMenuItem(value: UploadType.vcf, child: Text("VCF")),
                       DropdownMenuItem(value: UploadType.geneExpression, child: Text("Gene Expression")),
                       DropdownMenuItem(value: UploadType.tests, child: Text("Tests")),
+                      DropdownMenuItem(value: UploadType.mri, child: Text("MRI")),
                     ],
                     onChanged: (val) {
                       if (val == null) return;
@@ -335,7 +337,20 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
                       const SizedBox(height: 12),
                       Text('Uploaded: $selectedFileName'),
                     ],
-                  ] else ...[
+                  ] else if(_selectedType==UploadType.mri)...[
+                    const Text("Please upload your MRI."),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: pickFile,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Upload MRI'),
+                    ),
+                    if (selectedFileName != null) ...[
+                      const SizedBox(height: 12),
+                      Text('Uploaded: $selectedFileName'),
+                    ],
+                  ]
+                   else ...[
                     const Text("Enter patient details and test results."),
                     const SizedBox(height: 12),
 

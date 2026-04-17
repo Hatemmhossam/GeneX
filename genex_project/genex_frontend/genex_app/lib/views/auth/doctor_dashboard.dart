@@ -1,179 +1,212 @@
-  import 'package:flutter/material.dart';
-  import 'package:flutter_riverpod/flutter_riverpod.dart';
-  import 'package:shared_preferences/shared_preferences.dart';
-  import '../../viewmodels/providers.dart';
-  import '../doctor/user_search_view.dart';
-  import '../../viewmodels/auth_viewmodel.dart'; // Import to use AuthViewModel type
-  import '../doctor/see_accessed_patients.dart';
+// lib/views/doctor/doctor_dashboard.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../viewmodels/providers.dart';
+import '../../viewmodels/auth_viewmodel.dart';
+import '../doctor/user_search_view.dart';
+import '../doctor/see_accessed_patients.dart';
 
-  class DoctorDashboard extends ConsumerStatefulWidget {
-    const DoctorDashboard({super.key});
+class DoctorDashboard extends ConsumerStatefulWidget {
+  const DoctorDashboard({super.key});
 
-    @override
-    ConsumerState<DoctorDashboard> createState() => _DoctorDashboardState();
+  @override
+  ConsumerState<DoctorDashboard> createState() => _DoctorDashboardState();
+}
+
+class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
+  bool _isLoading = true;
+  bool _isAuthorized = false;
+
+  // Blue theme constants consistent with your app
+  static const Color mainBlue = Color(0xFF1A5699);
+
+  // Placeholder stats (In a real app, fetch these from your API)
+  final int totalPatients = 12;
+  final int pendingSimulations = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
   }
 
-  class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
-    bool _isLoading = true;
-    bool _isAuthorized = false;
+  Future<void> _checkAccess() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final role = prefs.getString('role');
 
-    @override
-    void initState() {
-      super.initState();
-      _checkAccess();
-    }
-
-    Future<void> _checkAccess() async {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-      final role = prefs.getString('role');
-
-      if (token == null || role != 'doctor') {
-        if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/signin', (r) => false);
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isAuthorized = true;
-            _isLoading = false;
-          });
-        }
+    if (token == null || role != 'doctor') {
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/signin', (r) => false);
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isAuthorized = true;
+          _isLoading = false;
+        });
       }
     }
+  }
 
-    // --- 🔴 NEW LOGOUT DIALOG FUNCTION ---
-    Future<void> _showLogoutConfirmation(BuildContext context, AuthViewModel authVM) async {
-      return showDialog<void>(
-        context: context,
-        barrierDismissible: false, // User must tap a button to close
-        builder: (BuildContext context) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20), // Rounded corners like image
-            ),
-            title: const Text(
-              'Confirm Logout',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            content: const Text(
-              'Are you sure you want to log out of the GeneX portal?',
-              style: TextStyle(fontSize: 16),
-            ),
-            actions: <Widget>[
-              // CANCEL BUTTON
-              TextButton(
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-                ),
-                onPressed: () {
-                  Navigator.of(context).pop(); // Just close the dialog
-                },
-              ),
-              // LOGOUT BUTTON (Red Style)
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent, // Red background
-                  foregroundColor: Colors.white, // White text
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                onPressed: () async {
-                  Navigator.of(context).pop(); // 1. Close Dialog
-                  
-                  // 2. Perform Logout Logic
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.clear();
-                  await authVM.logout();
-
-                  if (context.mounted) {
-                    Navigator.of(context).pushNamedAndRemoveUntil('/signin', (r) => false);
-                  }
-                },
-                child: const Text('Logout'),
-              ),
-            ],
-          );
-        },
-      );
-    }
-
-    @override
-    Widget build(BuildContext context) {
-      if (_isLoading) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
-      }
-
-      if (!_isAuthorized) {
-        return const SizedBox.shrink();
-      }
-
-      final authVM = ref.read(authViewModelProvider.notifier);
-
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Doctor Dashboard'),
+  Future<void> _showLogoutConfirmation(BuildContext context, AuthViewModel authVM) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: const Text('Confirm Logout'),
+          content: const Text('Are you sure you want to log out of the GeneX portal?'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.logout), // The exit icon
-              color: Colors.redAccent, // Make the icon red to stand out (optional)
-              onPressed: () {
-                // 🔴 Trigger the custom dialog instead of direct logout
-                _showLogoutConfirmation(context, authVM);
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                await authVM.logout();
+                if (context.mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil('/signin', (r) => false);
+                }
               },
+              child: const Text('Logout'),
             ),
           ],
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ListView(
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (!_isAuthorized) return const SizedBox.shrink();
+
+    final authVM = ref.read(authViewModelProvider.notifier);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F8),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.people),
-                  title: const Text('Patients'),
-                  subtitle: const Text('View assigned patients'),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const UserSearchView()),
-                    );
-                  },
-                ),
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Doctor Dashboard',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout, color: Colors.redAccent),
+                    onPressed: () => _showLogoutConfirmation(context, authVM),
+                  ),
+                ],
               ),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.medical_services),
-                  title: const Text('My Patients'),
-                  subtitle: const Text('View patients'),
-                  onTap: () {
-        // ✅ This navigates to your new screen
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const DoctorDashboardScreen(), 
-                    ),
-                  );
-                },
-                ),
+              const SizedBox(height: 32),
+
+              // Summary Stats Section
+              Row(
+                children: [
+                  _buildStatCard('Assigned Patients', totalPatients.toString(), Icons.people_alt_outlined),
+                  const SizedBox(width: 16),
+                  _buildStatCard('Pending Simulations', pendingSimulations.toString(), Icons.analytics_outlined),
+                ],
               ),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.analytics),
-                  title: const Text('Twin Simulation Review'),
-                  subtitle: const Text('Review patient simulations (coming soon)'),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Simulation review not implemented yet')),
-                    );
-                  },
-                ),
+              const SizedBox(height: 32),
+
+              // Navigation Tiles
+              const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              _buildDashboardTile(
+                icon: Icons.people_outline,
+                title: 'Manage Patients',
+                subtitle: 'View full patient directory',
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UserSearchView())),
+              ),
+              const SizedBox(height: 16),
+              _buildDashboardTile(
+                icon: Icons.medical_services_outlined,
+                title: 'My Patients',
+                subtitle: 'View patient medical logs',
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DoctorDashboardScreen())),
+              ),
+              const SizedBox(height: 16),
+              _buildDashboardTile(
+                icon: Icons.science_outlined,
+                title: 'Twin Simulation Review',
+                subtitle: 'Review patient simulations (coming soon)',
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Coming soon!'))),
               ),
             ],
           ),
         ),
-      );
-    }
+      ),
+    );
   }
+
+  Widget _buildStatCard(String title, String value, IconData icon) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: mainBlue),
+            const SizedBox(height: 12),
+            Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardTile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: mainBlue, size: 28),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+}
