@@ -15,14 +15,9 @@ final dashboardIndexProvider = StateProvider<int>((ref) => 0);
 
 final userSearchViewModelProvider =
     StateNotifierProvider<UserSearchViewModel, UserSearchState>((ref) {
-  final repo = ref.read(userRepositoryProvider);
-  return UserSearchViewModel(repo);
-});
-
-
-
-
-
+      final repo = ref.read(userRepositoryProvider);
+      return UserSearchViewModel(repo);
+    });
 
 // api service provider (singleton)
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
@@ -37,19 +32,19 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 });
 
 // auth viewmodel provider (StateNotifierProvider)
-final authViewModelProvider =
-    StateNotifierProvider<AuthViewModel, AuthState>((ref) {
+final authViewModelProvider = StateNotifierProvider<AuthViewModel, AuthState>((
+  ref,
+) {
   final repo = ref.read(authRepositoryProvider);
   final api = ref.read(apiServiceProvider);
   return AuthViewModel(repository: repo, api: api);
 });
 
-
 // Provider to fetch the list of medicines
 final medicinesProvider = FutureProvider<List<dynamic>>((ref) async {
   final token = await SecureStorage.readToken();
   final dio = Dio(BaseOptions(baseUrl: "http://localhost:8000/api/"));
-  
+
   final response = await dio.get(
     'medicines/',
     options: Options(headers: {"Authorization": "Bearer $token"}),
@@ -66,7 +61,7 @@ final medicinesProvider = FutureProvider<List<dynamic>>((ref) async {
 final symptomsProvider = FutureProvider<List<dynamic>>((ref) async {
   final token = await SecureStorage.readToken();
   final dio = Dio(BaseOptions(baseUrl: "http://127.0.0.1:8000/api/"));
-  
+
   final response = await dio.get(
     'symptoms/',
     options: Options(headers: {"Authorization": "Bearer $token"}),
@@ -80,11 +75,27 @@ final symptomsProvider = FutureProvider<List<dynamic>>((ref) async {
 });
 
 final geneReportsProvider = FutureProvider<List<dynamic>>((ref) async {
+  final token = await SecureStorage.readToken();
+
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: "http://127.0.0.1:8000/api/",
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    ),
+  );
+
   try {
-    final response = await ref.watch(apiServiceProvider).get('gene-reports/');
+    final response = await dio.get('gene-reports/');
+    print("FINAL URL => ${response.realUri}");
+    print("STATUS => ${response.statusCode}");
     return response.data as List<dynamic>;
-  } catch (e) {
-    print("Gene Reports Provider Error: $e");
+  } on DioException catch (e) {
+    print("ERROR URL => ${e.requestOptions.uri}");
+    print("ERROR STATUS => ${e.response?.statusCode}");
+    print("ERROR DATA => ${e.response?.data}");
     rethrow;
   }
-}); 
+});

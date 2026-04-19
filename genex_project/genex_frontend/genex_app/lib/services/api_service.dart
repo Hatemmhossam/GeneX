@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart';
 
 import 'dart:typed_data';
 
-
 class ApiService {
   final Dio _dio;
 
@@ -229,7 +228,6 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> evaluateTwinSimulation({
-
     required PlatformFile file,
     required String drug1,
     String? drug2,
@@ -240,7 +238,7 @@ class ApiService {
       MultipartFile multipartFile;
 
       if (kIsWeb) {
-        if (file.bytes == null) {
+        if (file.bytes == null || file.bytes!.isEmpty) {
           throw Exception("Web upload failed: file bytes are missing.");
         }
 
@@ -261,118 +259,113 @@ class ApiService {
 
       final formData = FormData.fromMap({
         "file": multipartFile,
-        "drug1": drug1,
+        "drug1": drug1.trim(),
         if (drug2 != null && drug2.trim().isNotEmpty) "drug2": drug2.trim(),
       });
 
-      final response = await _dio.post(
-        'evaluate/',
-        data: formData,
-        options: Options(contentType: 'multipart/form-data'),
-      );
+      final response = await _dio
+          .post(
+            'evaluate/',
+            data: formData,
+            options: Options(
+              contentType: 'multipart/form-data',
+              headers: {"Accept": "application/json"},
+            ),
+          )
+          .timeout(const Duration(seconds: 60));
 
-      return Map<String, dynamic>.from(response.data);
+      if (response.data == null) {
+        throw Exception("Empty response from server.");
+      }
+
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+
+      if (response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+
+      throw Exception(
+        "Unexpected response format: ${response.data.runtimeType}",
+      );
     } on DioException catch (e) {
+      debugPrint("=== DioException in evaluateTwinSimulation ===");
+      debugPrint("Type: ${e.type}");
+      debugPrint("Message: ${e.message}");
       debugPrint("Status code: ${e.response?.statusCode}");
       debugPrint("Response data: ${e.response?.data}");
       debugPrint("Request URI: ${e.requestOptions.uri}");
       debugPrint("Headers: ${e.requestOptions.headers}");
+
+      throw Exception(
+        e.response?.data?["error"]?.toString() ??
+            e.response?.data?["message"]?.toString() ??
+            "Upload failed. Please try again.",
+      );
+    } catch (e) {
+      debugPrint("=== General error in evaluateTwinSimulation ===");
+      debugPrint(e.toString());
+      throw Exception("Unexpected error: $e");
+    }
+  }
+
+  // Future<void> saveTwinReport({
+  //   required Map<String, dynamic> result,
+  //   required String drug1,
+  //   required String drug2,
+  //   required String fileName,
+  // }) async {
+  //   await _refreshAuthHeader();
+
+  //   final token = await SecureStorage.readToken();
+  //   debugPrint("🔥 TOKEN USED = $token");
+
+  //   if (token == null || token.isEmpty) {
+  //     throw Exception("No token found. User is not logged in.");
+  //   }
+
+  //   try {
+  //     final response = await _dio.post(
+  //       'save-report/',
+  //       data: {
+  //         "drug1": drug1,
+  //         "drug2": drug2,
+  //         "file_name": fileName,
+  //         "report_data": result,
+  //       },
+  //     );
+
+  //     debugPrint("✅ SAVE SUCCESS: ${response.statusCode}");
+  //   } catch (e) {
+  //     debugPrint("❌ SAVE FAILED: $e");
+  //     rethrow;
+  //   }
+  // }
+  Future<void> saveTwinReport({
+    required Map<String, dynamic> result,
+    required String drug1,
+    required String drug2,
+    required String fileName,
+  }) async {
+    await _refreshAuthHeader();
+
+    try {
+      final response = await _dio.post(
+        'save-report/',
+        data: {
+          "drug1": drug1,
+          "drug2": drug2,
+          "file_name": fileName,
+          "report_data": result,
+        },
+        options: Options(contentType: Headers.jsonContentType),
+      );
+
+      debugPrint("✅ SAVE SUCCESS: ${response.statusCode}");
+    } catch (e) {
+      debugPrint("❌ SAVE FAILED: $e");
       rethrow;
     }
-
-  required Uint8List bytes,      // Changed from String filePath
-  required String fileName,      // Added to give the file a name
-  required String drug1,
-  String? drug2,
-}) async {
-  await _refreshAuthHeader();
-
-  try {
-    FormData formData = FormData.fromMap({
-      // We use fromBytes because 'fromFile' crashes on Web
-      "file": MultipartFile.fromBytes(
-        bytes, 
-        filename: fileName,
-      ),
-      "drug1": drug1,
-      if (drug2 != null && drug2.isNotEmpty) "drug2": drug2,
-    });
-
-    final response = await _dio.post(
-      'evaluate/', 
-      data: formData,
-      options: Options(
-        contentType: 'multipart/form-data',
-        // Optional: Sometimes Dio needs followRedirects: true for multipart
-      ),
-    );
-
-    return Map<String, dynamic>.from(response.data);
-  } on DioException catch (e) {
-    debugPrint("Twin API Error: ${e.response?.data ?? e.message}");
-    rethrow;
-
   }
-
-// Future<void> saveTwinReport({
-//   required Map<String, dynamic> result,
-//   required String drug1,
-//   required String drug2,
-//   required String fileName,
-// }) async {
-//   await _refreshAuthHeader();
-
-//   final token = await SecureStorage.readToken();
-//   debugPrint("🔥 TOKEN USED = $token");
-
-//   if (token == null || token.isEmpty) {
-//     throw Exception("No token found. User is not logged in.");
-//   }
-
-//   try {
-//     final response = await _dio.post(
-//       'save-report/',
-//       data: {
-//         "drug1": drug1,
-//         "drug2": drug2,
-//         "file_name": fileName,
-//         "report_data": result,
-//       },
-//     );
-
-//     debugPrint("✅ SAVE SUCCESS: ${response.statusCode}");
-//   } catch (e) {
-//     debugPrint("❌ SAVE FAILED: $e");
-//     rethrow;
-//   }
-// }
-Future<void> saveTwinReport({
-  required Map<String, dynamic> result,
-  required String drug1,
-  required String drug2,
-  required String fileName,
-}) async {
-  await _refreshAuthHeader();
-
-  try {
-    final response = await _dio.post(
-      'save-report/',
-      data: {
-        "drug1": drug1,
-        "drug2": drug2,
-        "file_name": fileName,
-        "report_data": result,
-      },
-      options: Options(
-        contentType: Headers.jsonContentType,
-      ),
-    );
-
-    debugPrint("✅ SAVE SUCCESS: ${response.statusCode}");
-  } catch (e) {
-    debugPrint("❌ SAVE FAILED: $e");
-    rethrow;
-  }
-}
-}
 }

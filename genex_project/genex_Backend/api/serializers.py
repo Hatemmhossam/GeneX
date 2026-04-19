@@ -6,6 +6,9 @@ from .models import SymptomReport
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import DoctorPatient
+from .models import GenePredictionReport
+from .models import MedicalTestResult
+
 User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -53,3 +56,52 @@ class DoctorPatientSerializer(serializers.ModelSerializer):
     class Meta:
         model = DoctorPatient
         fields = ['id', 'doctor_username', 'patient_username', 'status', 'appointment_date']
+
+
+class GeneReportSerializer(serializers.ModelSerializer):
+    percentage = serializers.FloatField(source='risk_percentage', read_only=True)
+    label = serializers.CharField(source='result_label', read_only=True)
+    date = serializers.DateTimeField(source='created_at', read_only=True)
+    filename = serializers.CharField(source='file_name', read_only=True)
+    top_affecting_genes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GenePredictionReport
+        fields = [
+            'id', 'percentage', 'label', 'date', 'filename',
+            'precision', 'recall', 'f1_score',
+            'confidence_interval', 'top_affecting_genes'
+        ]
+
+    def get_top_affecting_genes(self, obj):
+        try:
+            return obj.top_affecting_genes or {}
+        except:
+            return {}
+
+
+
+class MedicalTestResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MedicalTestResult
+        fields = [
+            'id',
+            'age',
+            'gender',
+            'esr',
+            'crp',
+            'rf',
+            'anti_ccp',
+            'c3',
+            'c4',
+            'ana',
+            'anti_sm',
+            'anti_ro',
+            'hla_b27',
+            'anti_la',
+            'anti_dsdna',
+            'disease_prediction',
+            'confidence',
+            'xai_explanation',
+            'created_at',
+        ]

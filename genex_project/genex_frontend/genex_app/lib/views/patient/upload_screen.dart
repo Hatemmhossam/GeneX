@@ -18,13 +18,13 @@ class UploadScreen extends StatefulWidget {
 class _UploadScreenState extends State<UploadScreen> {
   UploadType _selectedType = UploadType.vcf;
   String? selectedFileName;
-  
+
   // Key for Form Validation
   final _formKey = GlobalKey<FormState>();
 
   // --- Controllers ---
   final _ageController = TextEditingController();
-  String _selectedGender = "Female"; 
+  String _selectedGender = "Female";
 
   final _esrController = TextEditingController();
   final _crpController = TextEditingController();
@@ -54,35 +54,37 @@ class _UploadScreenState extends State<UploadScreen> {
     super.dispose();
   }
 
-PlatformFile? _pickedFile;
+  PlatformFile? _pickedFile;
   Future<void> pickFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom,
-     allowedExtensions: ['vcf', 'txt', 'csv'],
-     withData: true,
-     );
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['vcf', 'txt', 'csv'],
+      withData: true,
+    );
 
     if (result != null) {
       setState(() => selectedFileName = result.files.single.name);
-      
+
       if (_selectedType == UploadType.geneExpression) {
-        _uploadAndAnalyze(result.files.single);      }
+        _uploadAndAnalyze(result.files.single);
+      }
     }
   }
 
-
-
-
-Future<void> _uploadAndAnalyze(PlatformFile file) async {
+  Future<void> _uploadAndAnalyze(PlatformFile file) async {
     // 1. Show Loading
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
-  
+
     try {
-      var request = http.MultipartRequest('POST', Uri.parse("${baseUrl}gene-upload/"));
-      
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse("${baseUrl}gene-upload/"),
+      );
+
       final token = await SecureStorage.readToken();
       if (token != null) {
         request.headers['Authorization'] = 'Bearer $token';
@@ -90,14 +92,18 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
 
       // WEB FIX: Check if bytes are available (Standard for Web)
       if (file.bytes != null) {
-        request.files.add(http.MultipartFile.fromBytes(
-          'file',
-          file.bytes!,
-          filename: file.name,
-        ));
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            file.bytes!,
+            filename: file.name,
+          ),
+        );
       } else if (file.path != null) {
         // Fallback for Mobile/Desktop
-        request.files.add(await http.MultipartFile.fromPath('file', file.path!));
+        request.files.add(
+          await http.MultipartFile.fromPath('file', file.path!),
+        );
       } else {
         throw Exception("File data is inaccessible.");
       }
@@ -125,65 +131,64 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
           errorMessage = response.body; // fallback
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
       }
-
-
     } catch (e) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload Failed: $e")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Upload Failed: $e")));
     }
   }
 
   void _showResultDialogg(double percentage, String label) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text("Analysis Results"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text("Rheumatoid Arthritis Probability:"),
-          const SizedBox(height: 10),
-          Text("$percentage%", 
-            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, 
-            color: percentage > 50 ? Colors.red : Colors.green)),
-          Text("Classification: $label"),
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Analysis Results"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Rheumatoid Arthritis Probability:"),
+            const SizedBox(height: 10),
+            Text(
+              "$percentage%",
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: percentage > 50 ? Colors.red : Colors.green,
+              ),
+            ),
+            Text("Classification: $label"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
         ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")),
-      ],
-    ),
-  );
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    );
+  }
 
   Future<void> sendTestsToBackend() async {
-    // TRIGGER VALIDATION: If the form is not valid, stop here.
     if (!_formKey.currentState!.validate()) {
       _showErrorSnackBar("Please fix the errors in the form.");
       return;
     }
 
-    final url = Uri.parse('http://127.0.0.1:8000/predict_xai/');
+    final token = await SecureStorage.readToken();
+
+    if (token == null || token.isEmpty) {
+      _showErrorSnackBar("You are not logged in. Please sign in again.");
+      return;
+    }
+
+    final url = Uri.parse("${baseUrl}predict_xai/");
+
     final Map<String, dynamic> requestBody = {
       "Age": int.tryParse(_ageController.text) ?? 0,
       "Gender": _selectedGender,
@@ -210,29 +215,48 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
 
       final response = await http.post(
         url,
-        headers: {"Content-Type": "application/json"},
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
         body: jsonEncode(requestBody),
       );
 
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
         _showResultDialog(
           prediction: data['disease_prediction'],
-          confidence: data['confidence'],
+          confidence: (data['confidence'] as num).toDouble(),
           explanation: data['xai_explanation'],
         );
       } else {
-        _showErrorSnackBar("Server Error: ${response.statusCode}");
+        String errorMessage = "Server Error: ${response.statusCode}";
+
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['error'] ?? errorMessage;
+        } catch (_) {}
+
+        _showErrorSnackBar(errorMessage);
       }
     } catch (e) {
-      if (mounted && Navigator.canPop(context)) Navigator.of(context).pop();
-      _showErrorSnackBar("Connection Failed: Check if Python server is running.");
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      _showErrorSnackBar("Connection Failed: $e");
     }
   }
 
-  void _showResultDialog({required String prediction, required double confidence, required String explanation}) {
+  void _showResultDialog({
+    required String prediction,
+    required double confidence,
+    required String explanation,
+  }) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -242,16 +266,24 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("Confidence: ${(confidence * 100).toStringAsFixed(1)}%", 
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                "Confidence: ${(confidence * 100).toStringAsFixed(1)}%",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 10),
-              const Text("AI Explanation:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                "AI Explanation:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               Text(explanation),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Close")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Close"),
+          ),
         ],
       ),
     );
@@ -265,10 +297,14 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
 
   String _titleForType(UploadType type) {
     switch (type) {
-      case UploadType.vcf: return "Upload VCF File";
-      case UploadType.geneExpression: return "Upload Gene Expression File";
-      case UploadType.tests: return "Enter Medical Tests";
-      case UploadType.mri: return "Enter MRI";
+      case UploadType.vcf:
+        return "Upload VCF File";
+      case UploadType.geneExpression:
+        return "Upload Gene Expression File";
+      case UploadType.tests:
+        return "Enter Medical Tests";
+      case UploadType.mri:
+        return "Enter MRI";
     }
   }
 
@@ -281,7 +317,8 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: Form( // WRAP EVERYTHING IN A FORM
+          child: Form(
+            // WRAP EVERYTHING IN A FORM
             key: _formKey,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
@@ -295,10 +332,22 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(value: UploadType.vcf, child: Text("VCF")),
-                      DropdownMenuItem(value: UploadType.geneExpression, child: Text("Gene Expression")),
-                      DropdownMenuItem(value: UploadType.tests, child: Text("Tests")),
-                      DropdownMenuItem(value: UploadType.mri, child: Text("MRI")),
+                      DropdownMenuItem(
+                        value: UploadType.vcf,
+                        child: Text("VCF"),
+                      ),
+                      DropdownMenuItem(
+                        value: UploadType.geneExpression,
+                        child: Text("Gene Expression"),
+                      ),
+                      DropdownMenuItem(
+                        value: UploadType.tests,
+                        child: Text("Tests"),
+                      ),
+                      DropdownMenuItem(
+                        value: UploadType.mri,
+                        child: Text("MRI"),
+                      ),
                     ],
                     onChanged: (val) {
                       if (val == null) return;
@@ -310,7 +359,13 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
                   ),
 
                   const SizedBox(height: 18),
-                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 12),
 
                   if (_selectedType == UploadType.vcf) ...[
@@ -337,7 +392,7 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
                       const SizedBox(height: 12),
                       Text('Uploaded: $selectedFileName'),
                     ],
-                  ] else if(_selectedType==UploadType.mri)...[
+                  ] else if (_selectedType == UploadType.mri) ...[
                     const Text("Please upload your MRI."),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
@@ -349,27 +404,40 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
                       const SizedBox(height: 12),
                       Text('Uploaded: $selectedFileName'),
                     ],
-                  ]
-                   else ...[
+                  ] else ...[
                     const Text("Enter patient details and test results."),
                     const SizedBox(height: 12),
 
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start, // Align for error labels
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start, // Align for error labels
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             value: _selectedGender,
-                            decoration: const InputDecoration(labelText: "Gender", border: OutlineInputBorder()),
+                            decoration: const InputDecoration(
+                              labelText: "Gender",
+                              border: OutlineInputBorder(),
+                            ),
                             items: ["Male", "Female"]
-                                .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                                .map(
+                                  (g) => DropdownMenuItem(
+                                    value: g,
+                                    child: Text(g),
+                                  ),
+                                )
                                 .toList(),
-                            onChanged: (v) => setState(() => _selectedGender = v!),
+                            onChanged: (v) =>
+                                setState(() => _selectedGender = v!),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: _numberField("Age", _ageController, isInt: true),
+                          child: _numberField(
+                            "Age",
+                            _ageController,
+                            isInt: true,
+                          ),
                         ),
                       ],
                     ),
@@ -389,21 +457,29 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
 
                     const SizedBox(height: 18),
                     const Divider(),
-                    const Text("Serology (Positive/Negative)", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      "Serology (Positive/Negative)",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 10),
 
-                    ..._pnValues.keys.map((label) => _positiveNegativeRow(label)).toList(),
+                    ..._pnValues.keys
+                        .map((label) => _positiveNegativeRow(label))
+                        .toList(),
 
                     const SizedBox(height: 18),
-                    
+
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
                       ),
-                      onPressed: sendTestsToBackend, 
-                      child: const Text("Save Tests & Get Analysis", style: TextStyle(fontSize: 16)),
+                      onPressed: sendTestsToBackend,
+                      child: const Text(
+                        "Save Tests & Get Analysis",
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
                   ],
                 ],
@@ -416,12 +492,18 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
   }
 
   // UPDATED NUMBER FIELD WITH VALIDATION
-  Widget _numberField(String label, TextEditingController controller, {bool isInt = false}) {
+  Widget _numberField(
+    String label,
+    TextEditingController controller, {
+    bool isInt = false,
+  }) {
     return TextFormField(
       controller: controller,
       // Only allows digits and one decimal point
       inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(isInt ? r'^\d*' : r'^\d*\.?\d*')),
+        FilteringTextInputFormatter.allow(
+          RegExp(isInt ? r'^\d*' : r'^\d*\.?\d*'),
+        ),
       ],
       keyboardType: TextInputType.numberWithOptions(decimal: !isInt),
       decoration: InputDecoration(
@@ -458,7 +540,8 @@ Future<void> _uploadAndAnalyze(PlatformFile file) async {
               ButtonSegment(value: false, label: Text("Neg")),
             ],
             selected: {value},
-            onSelectionChanged: (set) => setState(() => _pnValues[label] = set.first),
+            onSelectionChanged: (set) =>
+                setState(() => _pnValues[label] = set.first),
             showSelectedIcon: false,
             style: const ButtonStyle(
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,

@@ -5,14 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../services/api_service.dart';
 
-class TwinSimulationScreen extends StatefulWidget {
-  const TwinSimulationScreen({super.key});
+class TwinPreviewScreen extends StatefulWidget {
+  const TwinPreviewScreen({super.key});
 
   @override
-  State<TwinSimulationScreen> createState() => _TwinSimulationScreenState();
+  State<TwinPreviewScreen> createState() => _TwinPreviewScreenState();
 }
 
-class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
+class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
   String selectedMode = "drug_gene"; // drug_gene / drug_drug
 
   // =========================

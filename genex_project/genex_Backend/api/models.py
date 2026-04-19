@@ -3,7 +3,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.db import models
-
+import joblib
+import shap
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -99,15 +100,61 @@ class GeneExpressionFile(models.Model):
     def __str__(self):
         return f"{self.user.id} - {self.file.name}"
 
+
+
+MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
+FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
+EXPLAINER = shap.Explainer(MODEL)
+
 class GenePredictionReport(models.Model):
     patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     risk_percentage = models.FloatField()
-    result_label = models.CharField(max_length=50) # e.g., "High Risk"
-    created_at = models.DateTimeField(auto_now_add=True)
+    result_label = models.CharField(max_length=50)
     file_name = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    precision = models.FloatField(null=True, blank=True)
+    recall = models.FloatField(null=True, blank=True)
+    f1_score = models.FloatField(null=True, blank=True)
+    confidence_interval = models.CharField(max_length=100, null=True, blank=True)
+    top_affecting_genes = models.JSONField(null=True, blank=True)
+    input_features = models.JSONField(null=True, blank=True)
+    
+
+
+class MedicalTestResult(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='medical_test_results',
+        null=True,
+        blank=True
+    )
+
+    age = models.IntegerField()
+    gender = models.CharField(max_length=10)
+
+    esr = models.FloatField(null=True, blank=True)
+    crp = models.FloatField(null=True, blank=True)
+    rf = models.FloatField(null=True, blank=True)
+    anti_ccp = models.FloatField(null=True, blank=True)
+    c3 = models.FloatField(null=True, blank=True)
+    c4 = models.FloatField(null=True, blank=True)
+
+    ana = models.BooleanField(default=False)
+    anti_sm = models.BooleanField(default=False)
+    anti_ro = models.BooleanField(default=False)
+    hla_b27 = models.BooleanField(default=False)
+    anti_la = models.BooleanField(default=False)
+    anti_dsdna = models.BooleanField(default=False)
+
+    disease_prediction = models.CharField(max_length=100)
+    confidence = models.FloatField()
+    xai_explanation = models.TextField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.patient.email} - {self.risk_percentage}%"
+        return f"{self.user} - {self.disease_prediction} ({self.created_at:%Y-%m-%d %H:%M})"
 
 
 class TwinSimulationReport(models.Model):
