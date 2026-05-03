@@ -1,7 +1,7 @@
 # api/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet ,run_twin
+from .views import api_root, signup, signin, ProfileView, MedicineViewSet, SymptomViewSet ,run_twin, get_assigned_doctors
 from .views import PatientSearchView
 from .views import send_patient_request # Import the new view
 from . import views  # <--- THIS LINE IS MISSING
@@ -13,7 +13,7 @@ from .views import get_user_risk
 from .views import evaluate
 import ml_api.views 
 from .views import save_report
-
+from . import views
 
 
 router = DefaultRouter()
@@ -49,7 +49,7 @@ urlpatterns = [
     path("evaluate/", evaluate),
     path('predict_xai/', ml_api.views.predict_xai, name='predict_xai'),
     path("save-report/",save_report),
-  
+    path('patient/assigned-doctors/', views.get_assigned_doctors, name='get_assigned_doctors'),
 ]
 
 
