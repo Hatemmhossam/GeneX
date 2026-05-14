@@ -9,8 +9,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .services import MLService
-
-
+from .models import DoctorPatient
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from .models import User, Medicine, SymptomReport,TwinSimulationReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer,MedicalTestResultSerializer
 
@@ -1010,3 +1010,30 @@ def save_report(request):
     except Exception as e:
         print("🔥 SAVE REPORT ERROR:", str(e))
         return JsonResponse({"error": str(e)}, status=500)
+    
+
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_assigned_doctors(request):
+    user = request.user
+
+    doctor_links = DoctorPatient.objects.filter(
+        patient_username=user.username,
+        status='accepted'
+    )
+
+    doctors_data = []
+    for link in doctor_links:
+        try:
+            doctor = User.objects.get(username=link.doctor_username)
+            doctors_data.append({
+                "doctor_id": doctor.id,
+                "doctor_username": doctor.username,
+                "doctor_name": getattr(doctor, 'full_name', doctor.username),
+            })
+        except User.DoesNotExist:
+            continue
+
+    return Response(doctors_data, status=status.HTTP_200_OK)

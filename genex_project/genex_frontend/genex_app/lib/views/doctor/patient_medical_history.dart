@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class PatientMedicalHistoryScreen extends StatefulWidget {
+import '../../viewmodels/providers.dart';
+import '../shared/chat_screen.dart';
+
+class PatientMedicalHistoryScreen extends ConsumerStatefulWidget {
   final int patientId;
   final String patientName;
 
@@ -14,12 +18,12 @@ class PatientMedicalHistoryScreen extends StatefulWidget {
   });
 
   @override
-  State<PatientMedicalHistoryScreen> createState() =>
+  ConsumerState<PatientMedicalHistoryScreen> createState() =>
       _PatientMedicalHistoryScreenState();
 }
 
 class _PatientMedicalHistoryScreenState
-    extends State<PatientMedicalHistoryScreen> {
+    extends ConsumerState<PatientMedicalHistoryScreen> {
   List<dynamic> medicines = [];
   List<dynamic> symptoms = [];
   List<dynamic> testResults = [];
@@ -34,9 +38,70 @@ class _PatientMedicalHistoryScreenState
     _fetchPatientData();
   }
 
-  Future<void> _fetchPatientData() async {
+  Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    return prefs.getString('token');
+  }
+
+  Future<void> _openPatientChat() async {
+    try {
+      final token = await _getToken();
+
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found');
+      }
+
+      final authState = ref.read(authViewModelProvider);
+      final rawDoctorId = authState.user?.id;
+      final doctorId = int.tryParse(rawDoctorId?.toString() ?? '');
+
+      if (doctorId == null) {
+        throw Exception('Doctor ID not found in auth state');
+      }
+
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/api/chat/open/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'doctor_id': doctorId,
+          'patient_id': widget.patientId,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to open chat: ${response.body}');
+      }
+
+      final data = jsonDecode(response.body);
+      final conversationId = data['id'];
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            conversationId: conversationId,
+            receiverName: widget.patientName,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to open chat: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _fetchPatientData() async {
+    final token = await _getToken();
 
     final url = Uri.parse(
       'http://127.0.0.1:8000/api/doctor/patient-records/${widget.patientId}/',
@@ -139,8 +204,7 @@ class _PatientMedicalHistoryScreenState
   }
 
   Future<void> _saveDoctorNote(int symptomId, String note) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _getToken();
 
     final url = Uri.parse(
       'http://127.0.0.1:8000/api/doctor/add-note/$symptomId/',
@@ -197,9 +261,7 @@ class _PatientMedicalHistoryScreenState
 
   String _formatConfidence(dynamic confidence) {
     if (confidence == null) return '-';
-
     final double val = (confidence as num).toDouble();
-
     if (val <= 1) {
       return "${(val * 100).toStringAsFixed(1)}%";
     }
@@ -215,11 +277,10 @@ class _PatientMedicalHistoryScreenState
   String _formatMetric(dynamic value) {
     if (value == null) return '-';
     final double val = (value as num).toDouble();
-
     if (val <= 1) {
-      return (val * 100).toStringAsFixed(1) + "%";
+      return "${(val * 100).toStringAsFixed(1)}%";
     }
-    return val.toStringAsFixed(1) + "%";
+    return "${val.toStringAsFixed(1)}%";
   }
 
   Widget _sectionTitle(String title, IconData icon, Color color) {
@@ -314,44 +375,68 @@ class _PatientMedicalHistoryScreenState
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: Colors.white.withOpacity(0.18),
-            child: const Icon(Icons.person, color: Colors.white, size: 32),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: Colors.white.withOpacity(0.18),
+                child: const Icon(Icons.person, color: Colors.white, size: 32),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Patient Medical History",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.patientName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Review medicines, symptoms, test results, gene reports, and doctor notes.",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.92),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Patient Medical History",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
+          const SizedBox(height: 18),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ElevatedButton.icon(
+              onPressed: _openPatientChat,
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text("Chat with Patient"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.teal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.patientName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  "Review medicines, symptoms, test results, gene reports, and doctor notes.",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.92),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -706,7 +791,6 @@ class _PatientMedicalHistoryScreenState
                 itemBuilder: (context, index) {
                   final report = geneReports[index];
                   final topGenes = report['top_affecting_genes'];
-                  final inputFeatures = report['input_features'];
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 14),
@@ -952,30 +1036,30 @@ class _PatientMedicalHistoryScreenState
       body: _isLoading
           ? _buildLoadingState()
           : _errorMessage != null
-          ? _buildErrorState()
-          : RefreshIndicator(
-              onRefresh: _fetchPatientData,
-              color: Colors.teal,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeaderCard(),
-                    const SizedBox(height: 22),
-                    _buildMedicinesSection(),
-                    const SizedBox(height: 28),
-                    _buildSymptomsSection(),
-                    const SizedBox(height: 28),
-                    _buildTestsSection(),
-                    const SizedBox(height: 28),
-                    _buildGeneReportsSection(),
-                    const SizedBox(height: 20),
-                  ],
+              ? _buildErrorState()
+              : RefreshIndicator(
+                  onRefresh: _fetchPatientData,
+                  color: Colors.teal,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeaderCard(),
+                        const SizedBox(height: 22),
+                        _buildMedicinesSection(),
+                        const SizedBox(height: 28),
+                        _buildSymptomsSection(),
+                        const SizedBox(height: 28),
+                        _buildTestsSection(),
+                        const SizedBox(height: 28),
+                        _buildGeneReportsSection(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
     );
   }
 }
