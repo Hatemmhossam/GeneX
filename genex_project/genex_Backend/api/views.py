@@ -989,8 +989,11 @@ def save_report(request):
         report = data.get("report_data") or {}
         best = report.get("best_recommendation") or {}
 
-        best_drug = best.get("drug", "NO_SAFE_DRUG")
-        risk_reduction = best.get("risk_reduction", 0)
+        if "drug_pair" in best:
+            best_drug = " + ".join(best["drug_pair"])
+        else:
+            best_drug = best.get("drug") or "NO_SAFE_DRUG"
+            risk_reduction = best.get("risk_reduction", 0)
 
         saved = TwinSimulationReport.objects.create(
             user=request.user,

@@ -61,10 +61,27 @@ def simple_rule_based_explanation(row, prediction, confidence):
 def predict_xai(request):
     try:
         data = request.data
+        user = request.user
+
+        # Take age and gender directly from logged-in user
+        age = user.age
+        gender = user.gender
+
+        if age is None:
+            return Response(
+                {'error': 'Your profile is missing age. Please update it first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not gender:
+            return Response(
+                {'error': 'Your profile is missing gender. Please update it first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         input_dict = {
-            "Age": [data.get('Age', 0)],
-            "Gender": [data.get('Gender', 'Female')],
+            "Age": [age],
+            "Gender": [gender],
             "ESR": [data.get('ESR') if data.get('ESR') is not None else np.nan],
             "CRP": [data.get('CRP') if data.get('CRP') is not None else np.nan],
             "RF": [data.get('RF') if data.get('RF') is not None else np.nan],
@@ -100,9 +117,9 @@ def predict_xai(request):
         )
 
         saved_result = MedicalTestResult.objects.create(
-            user=request.user,
-            age=data.get('Age', 0),
-            gender=data.get('Gender', 'Female'),
+            user=user,
+            age=age,
+            gender=gender,
 
             esr=data.get('ESR'),
             crp=data.get('CRP'),
@@ -126,10 +143,12 @@ def predict_xai(request):
         return Response({
             'message': 'Prediction completed and saved successfully',
             'result_id': saved_result.id,
-            'user_id': request.user.id,
+            'user_id': user.id,
             'disease_prediction': str(prediction),
             'confidence': confidence,
-            'xai_explanation': xai_explanation
+            'xai_explanation': xai_explanation,
+            'age': age,
+            'gender': gender,
         }, status=status.HTTP_200_OK)
 
     except Exception as e:

@@ -173,8 +173,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
       setState(() {
         if (response.statusCode == 200) {
           if (data['found'] == true) {
-            interactionResult =
-                'Interaction found:\n\n${data['drug1']} + ${data['drug2']}\n\n${data['description']}';
+            interactionResult = 'Interaction found:\n\n${data['description']}';
           } else {
             interactionResult = data['message'] ?? 'No interaction found.';
           }
@@ -526,7 +525,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
       children: [
         buildSummaryCard(
           title: "Best Drug",
-          value: best["drug"]?.toString() ?? "-",
+          value: best["drug_pair"]?.toString() ?? "-",
           icon: Icons.star_rounded,
         ),
         const SizedBox(height: 12),

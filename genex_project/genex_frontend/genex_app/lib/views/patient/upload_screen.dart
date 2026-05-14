@@ -23,8 +23,6 @@ class _UploadScreenState extends State<UploadScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // --- Controllers ---
-  final _ageController = TextEditingController();
-  String _selectedGender = "Female";
 
   final _esrController = TextEditingController();
   final _crpController = TextEditingController();
@@ -44,7 +42,6 @@ class _UploadScreenState extends State<UploadScreen> {
 
   @override
   void dispose() {
-    _ageController.dispose();
     _esrController.dispose();
     _crpController.dispose();
     _antiCcpController.dispose();
@@ -56,17 +53,42 @@ class _UploadScreenState extends State<UploadScreen> {
 
   PlatformFile? _pickedFile;
   Future<void> pickFile() async {
+    List<String> allowedExtensions;
+
+    switch (_selectedType) {
+      case UploadType.vcf:
+        allowedExtensions = ['vcf'];
+        break;
+
+      case UploadType.geneExpression:
+        allowedExtensions = ['csv', 'txt'];
+        break;
+
+      case UploadType.mri:
+        // change these if your backend expects other MRI formats
+        allowedExtensions = ['nii', 'nii.gz', 'dcm', 'zip'];
+        break;
+
+      case UploadType.tests:
+        return; // no file picker needed for tests
+    }
+
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['vcf', 'txt', 'csv'],
+      allowedExtensions: allowedExtensions,
       withData: true,
     );
 
-    if (result != null) {
-      setState(() => selectedFileName = result.files.single.name);
+    if (result != null && result.files.isNotEmpty) {
+      final picked = result.files.single;
+
+      setState(() {
+        _pickedFile = picked;
+        selectedFileName = picked.name;
+      });
 
       if (_selectedType == UploadType.geneExpression) {
-        _uploadAndAnalyze(result.files.single);
+        _uploadAndAnalyze(picked);
       }
     }
   }
@@ -190,8 +212,6 @@ class _UploadScreenState extends State<UploadScreen> {
     final url = Uri.parse("${baseUrl}predict_xai/");
 
     final Map<String, dynamic> requestBody = {
-      "Age": int.tryParse(_ageController.text) ?? 0,
-      "Gender": _selectedGender,
       "ESR": double.tryParse(_esrController.text),
       "CRP": double.tryParse(_crpController.text),
       "RF": double.tryParse(_rfController.text),
@@ -408,39 +428,6 @@ class _UploadScreenState extends State<UploadScreen> {
                     const Text("Enter patient details and test results."),
                     const SizedBox(height: 12),
 
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start, // Align for error labels
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedGender,
-                            decoration: const InputDecoration(
-                              labelText: "Gender",
-                              border: OutlineInputBorder(),
-                            ),
-                            items: ["Male", "Female"]
-                                .map(
-                                  (g) => DropdownMenuItem(
-                                    value: g,
-                                    child: Text(g),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _selectedGender = v!),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _numberField(
-                            "Age",
-                            _ageController,
-                            isInt: true,
-                          ),
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 10),
 
                     _numberField("ESR", _esrController),

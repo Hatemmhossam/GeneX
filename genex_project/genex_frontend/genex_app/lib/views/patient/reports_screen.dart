@@ -143,41 +143,6 @@ class _ReportCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Model Classification Report",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 12),
-                  _MetricRow(
-                    label: "Precision",
-                    value: report['precision'],
-                    color: Colors.blue,
-                  ),
-                  _MetricRow(
-                    label: "Recall",
-                    value: report['recall'],
-                    color: Colors.orange,
-                  ),
-                  _MetricRow(
-                    label: "F1-Score",
-                    value: report['f1_score'],
-                    color: Colors.purple,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Text(
-                        "Confidence Interval: ",
-                        style: TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      Expanded(
-                        child: Text(
-                          report['confidence_interval']?.toString() ?? "N/A",
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                   const Divider(),
                   const SizedBox(height: 8),
