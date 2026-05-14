@@ -18,7 +18,7 @@ class UploadScreen extends StatefulWidget {
 class _UploadScreenState extends State<UploadScreen> {
   UploadType _selectedType = UploadType.vcf;
   String? selectedFileName;
-
+  static const String baseUrl = 'http://127.0.0.1:8000/api/';
   // Key for Form Validation
   final _formKey = GlobalKey<FormState>();
 

@@ -7,10 +7,10 @@ import 'med_history_screen.dart';
 import 'twin_simulation_screen.dart';
 import 'doctor_requests_screen.dart';
 import 'reports_screen.dart';
-
-import 'symptoms_screen.dart'; // 1. IMPORT YOUR NEW FILE
+import 'symptoms_screen.dart';
 import 'about_system_screen.dart';
 import 'dna_model_visualization.dart';
+import 'my_doctors_screen.dart';
 
 class ResponsiveDashboard extends ConsumerStatefulWidget {
   const ResponsiveDashboard({super.key});
@@ -31,6 +31,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
     const UploadScreen(),
     const TwinSimulationScreen(),
     const DoctorRequestsScreen(),
+    const MyDoctorsScreen(),
     const ReportsScreen(),
     const AboutSystemScreen(),
   ];
@@ -107,14 +108,17 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
                   label: Text('Simulation'),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.person),
+                  icon: Icon(Icons.person_search),
                   label: Text('Doctor Requests'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.medical_services_outlined),
+                  label: Text('My Doctors'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.folder_shared),
                   label: Text('Reports'),
                 ),
-
                 NavigationRailDestination(
                   icon: Icon(Icons.info_outline),
                   label: Text('About'),
@@ -124,7 +128,6 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
               onDestinationSelected: (int index) {
                 setState(() => _selectedIndex = index);
               },
-              // REMOVED: The 'trailing' property that contained the bottom logout button
             ),
 
           Expanded(
@@ -144,7 +147,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
       ),
       bottomNavigationBar: !isDesktop
           ? BottomNavigationBar(
-              currentIndex: _selectedIndex > 3 ? 0 : _selectedIndex,
+              currentIndex: _selectedIndex > 4 ? 0 : _selectedIndex,
               type: BottomNavigationBarType.fixed,
               onTap: (index) => setState(() => _selectedIndex = index),
               items: const [
@@ -163,6 +166,10 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
                 BottomNavigationBarItem(
                   icon: Icon(Icons.sick),
                   label: 'Symptoms',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.medical_services_outlined),
+                  label: 'Doctors',
                 ),
               ],
             )
@@ -188,7 +195,6 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
             ),
           ),
           const Spacer(),
-          // KEEPING THIS ONE: The logout button in the top right
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
             tooltip: 'Logout',
@@ -203,7 +209,7 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
       ),
     );
   }
-} // <--- End of State class
+}
 
 class DashboardOverview extends ConsumerWidget {
   const DashboardOverview({super.key});
@@ -211,7 +217,6 @@ class DashboardOverview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final medsAsync = ref.watch(medicinesProvider);
-    // 1. Watch the reports to get the latest risk status
     final reportsAsync = ref.watch(geneReportsProvider);
 
     return SingleChildScrollView(
@@ -232,19 +237,13 @@ class DashboardOverview extends ConsumerWidget {
             childAspectRatio: 1.5,
             physics: const NeverScrollableScrollPhysics(),
             children: [
-              // --- DYNAMIC VITALS/RISK CARD ---
               reportsAsync.when(
                 data: (reports) {
-                  // Get the latest report if it exists
-                  final latestReport = reports.isNotEmpty
-                      ? reports.first
-                      : null;
-                  final String status = latestReport != null
-                      ? latestReport['label']
-                      : "No Data";
-                  final Color statusColor = status.contains("High")
-                      ? Colors.red
-                      : Colors.green;
+                  final latestReport = reports.isNotEmpty ? reports.first : null;
+                  final String status =
+                      latestReport != null ? latestReport['label'] : "No Data";
+                  final Color statusColor =
+                      status.contains("High") ? Colors.red : Colors.green;
 
                   return InkWell(
                     onTap: () {
@@ -280,7 +279,6 @@ class DashboardOverview extends ConsumerWidget {
                 ),
               ),
 
-              // --- CLICKABLE MEDS CARD ---
               medsAsync.when(
                 data: (meds) => InkWell(
                   onTap: () {
@@ -313,7 +311,6 @@ class DashboardOverview extends ConsumerWidget {
                 ),
               ),
 
-              // --- REPORTS CARD ---
               InkWell(
                 onTap: () {
                   Navigator.push(
@@ -330,6 +327,22 @@ class DashboardOverview extends ConsumerWidget {
                 ),
               ),
 
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyDoctorsScreen()),
+                  );
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: _medicalWidget(
+                  "My Doctors",
+                  "View & Chat",
+                  Icons.medical_services_outlined,
+                  Colors.teal,
+                ),
+              ),
+
               _medicalWidget(
                 "Next Simulation",
                 "Scheduled: Feb 25",
@@ -342,8 +355,6 @@ class DashboardOverview extends ConsumerWidget {
       ),
     );
   }
-
-  // _medicalWidget remains the same...
 }
 
 Widget _medicalWidget(String title, String value, IconData icon, Color color) {
@@ -368,64 +379,10 @@ Widget _medicalWidget(String title, String value, IconData icon, Color color) {
         Text(title, style: const TextStyle(color: Colors.grey)),
         Text(
           value,
+          textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ],
     ),
   );
 }
-
-// --- DashboardOverview is now outside to fix the red error ---
-
-// class DashboardOverview extends StatelessWidget {
-//   const DashboardOverview({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return SingleChildScrollView(
-//       padding: const EdgeInsets.all(24),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           const Text("System Overview", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-//           const SizedBox(height: 20),
-//           GridView.count(
-//             crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
-//             shrinkWrap: true,
-//             crossAxisSpacing: 20,
-//             mainAxisSpacing: 20,
-//             childAspectRatio: 1.5,
-//             physics: const NeverScrollableScrollPhysics(),
-//             children: [
-//               _medicalWidget("Vitals Status", "Stable", Icons.favorite, Colors.red),
-//               _medicalWidget("Active Meds", "4 Prescribed", Icons.medication, Colors.blue),
-//               _medicalWidget("Next Simulation", "Scheduled: Jan 30", Icons.science, Colors.purple),
-//             ],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _medicalWidget(String title, String value, IconData icon, Color color) {
-//     return Container(
-//       padding: const EdgeInsets.all(20),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(12),
-//         boxShadow: [
-//           BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
-//         ],
-//       ),
-//       child: Column(
-//         mainAxisAlignment: MainAxisAlignment.center,
-//         children: [
-//           Icon(icon, color: color, size: 40),
-//           const SizedBox(height: 10),
-//           Text(title, style: const TextStyle(color: Colors.grey)),
-//           Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-//         ],
-//       ),
-//     );
-//   }
-// }
