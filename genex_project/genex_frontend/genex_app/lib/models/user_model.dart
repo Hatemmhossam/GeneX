@@ -1,31 +1,9 @@
-// // lib/models/user_model.dart
-// class UserModel {
-//   final String id;
-//   final String name;
-//   final String email;
-//   final String role; // "patient" or "doctor"
-
-//   UserModel({
-//     required this.id,
-//     required this.name,
-//     required this.email,
-//     required this.role,
-//   });
-
-//   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
-//         id: json['id'].toString(),
-//         name: json['name'] ?? json['full_name'] ?? '',
-//         email: json['email'] ?? '',
-//         role: json['role'] ?? '',
-//       );
-// }
-
 class UserModel {
   final String id;
-  final String displayName; // A helper for the UI
+  final String displayName;
   final String email;
-  final String username; // This was missing
-  final String? role;
+  final String username;
+  final String role;
   final int? age;
   final double? weight;
   final double? height;
@@ -44,21 +22,33 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    // Logic to pick the best name to show in the UI
-    String nameToDisplay = json['first_name'] != null && json['first_name'].toString().isNotEmpty
-        ? json['first_name']
-        : json['username'] ?? 'User';
+    String nameToDisplay;
+
+    if (json['first_name'] != null &&
+        json['first_name'].toString().trim().isNotEmpty) {
+      nameToDisplay = json['first_name'].toString();
+    } else if (json['full_name'] != null &&
+        json['full_name'].toString().trim().isNotEmpty) {
+      nameToDisplay = json['full_name'].toString();
+    } else if (json['name'] != null &&
+        json['name'].toString().trim().isNotEmpty) {
+      nameToDisplay = json['name'].toString();
+    } else {
+      nameToDisplay = json['username']?.toString() ?? 'User';
+    }
 
     return UserModel(
-      id: json['id'].toString(),
+      id: json['id']?.toString() ?? '',
       displayName: nameToDisplay,
-      email: json['email'] ?? '',
-      username: json['username'] ?? '',
-      role: json['role'] ?? 'patient',
-      age: json['age'] as int?,
-      weight: (json['weight'] as num?)?.toDouble(), 
+      email: json['email']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      role: (json['role'] ?? json['user_type'] ?? json['type'] ?? 'patient')
+          .toString()
+          .toLowerCase(),
+      age: json['age'] is int ? json['age'] : int.tryParse('${json['age']}'),
+      weight: (json['weight'] as num?)?.toDouble(),
       height: (json['height'] as num?)?.toDouble(),
-      gender: json['gender'],
+      gender: json['gender']?.toString(),
     );
   }
 }

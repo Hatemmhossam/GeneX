@@ -1,21 +1,72 @@
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Q
 from rest_framework import status, views, viewsets, generics 
 from rest_framework.response import Response
+
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from django.db import connection
+from .services import MLService
+from .models import DoctorPatient
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from .models import User, Medicine, SymptomReport,TwinSimulationReport
+from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer,MedicalTestResultSerializer
 
+from django.db import connection
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.views.decorators.csrf import csrf_exempt
+# ✅ IMPORTS: Ensure all your models and serializers are here
+from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun,MedicalTestResult
+# from .serializers import (
+#     UserSerializer, 
+#     MedicineSerializer, 
+#     SymptomReportSerializer, 
+#     # PatientSerializer
+# )
+print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
+
+from django.db import connection
+from rest_framework.parsers import MultiPartParser, FormParser
+#from .services import run_twin_simulation
+# ✅ IMPORTS: Ensure all your models and serializers are here
+from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
+
+from django.db import connection
+from .models import DrugInteraction
+import joblib
+import pandas as pd
+import numpy as np
+from django.contrib.auth import get_user_model
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import GenePredictionReport
+from io import TextIOWrapper
+from .models import GeneExpressionFile
+#from .services.drug_analysis import analyze_drug_with_file
+import json
+from .models import GeneExpressionFile
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient
+import shap
+from .models import GenePredictionReport
+
+#for test 
+from django.views.decorators.csrf import csrf_exempt
+
 from .serializers import (
     UserSerializer, 
     MedicineSerializer, 
     SymptomReportSerializer, 
     PatientSerializer
 )
+from .serializers import GeneReportSerializer
+
+
+
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
+
 
 # --- Helper: JWT Token Generation ---
 def get_tokens_for_user(user):
@@ -127,6 +178,91 @@ class ProfileView(views.APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+#---upload gene file api view---
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def upload_gene_file(request):
+    if 'file' not in request.FILES:
+        return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    uploaded_file = FileUpload.objects.create(
+        user=request.user,
+        file=request.FILES['file']
+    )
+
+    request.user.current_gene_file = uploaded_file
+    request.user.save()
+
+    return Response({
+        "message": "Gene file uploaded successfully",
+        "file_id": uploaded_file.id,
+        "file_url": uploaded_file.file.url if uploaded_file.file else None
+    }, status=status.HTTP_201_CREATED)
+
+#--- Twin Simulation View ---
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def run_twin(request):
+    drugs = request.data.get('drugs', [])
+
+    if not drugs or not isinstance(drugs, list):
+        return Response(
+            {"error": "drugs must be a non-empty list"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not request.user.current_gene_file:
+        return Response(
+            {"error": "No active gene expression file found for this user"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    gene_file_path = request.user.current_gene_file.file.path
+
+    try:
+        result = run_twin_simulation(
+            gene_file_path=gene_file_path,
+            drugs=drugs
+        )
+
+        saved_run = TwinRun.objects.create(
+            user=request.user,
+            selected_drugs=drugs,
+            results=result
+        )
+
+        return Response({
+            "message": "Twin simulation completed successfully",
+            "run_id": saved_run.id,
+            "result": result
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response(
+            {"error": f"Twin simulation failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+#---History API View---
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_twin_history(request):
+    runs = TwinRun.objects.filter(user=request.user).order_by('-created_at')
+
+    data = []
+    for run in runs:
+        data.append({
+            "id": run.id,
+            "selected_drugs": run.selected_drugs,
+            "results": run.results,
+            "created_at": run.created_at
+        })
+
+    return Response(data, status=status.HTTP_200_OK)
 # --- Medicine Views ---
 
 class MedicineViewSet(viewsets.ModelViewSet):
@@ -342,11 +478,11 @@ def get_my_patients(request):
 @permission_classes([IsAuthenticated])
 def get_patient_medical_details(request, patient_id):
     doctor_username = request.user.username
-    
+
     try:
         # 1. Get the Patient
         target_patient = User.objects.get(id=patient_id)
-        
+
         # 2. Check Permission
         has_access = DoctorPatient.objects.filter(
             doctor_username=doctor_username,
@@ -355,42 +491,106 @@ def get_patient_medical_details(request, patient_id):
         ).exists()
 
         if not has_access:
-            return Response({"error": "Access Denied"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "Access Denied"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # 3. Fetch Medicines
         medicines = Medicine.objects.filter(user=target_patient).values()
 
         # 4. Fetch Symptoms
-        raw_symptoms = SymptomReport.objects.filter(user=target_patient)
-        
-        # DEBUG PRINT: Verify count in terminal
+        raw_symptoms = SymptomReport.objects.filter(
+            user=target_patient
+        ).order_by('-created_at')
+
         print(f"🔍 FOUND {raw_symptoms.count()} SYMPTOMS FOR {target_patient.username}")
 
         symptoms_data = []
         for s in raw_symptoms:
             symptoms_data.append({
                 "id": s.id,
-                # ✅ SEND BOTH KEYS so Flutter never misses it
-                "symptom": s.symptom_name,       
-                "symptom_name": s.symptom_name,  
+                "symptom": s.symptom_name,
+                "symptom_name": s.symptom_name,
                 "severity": s.severity,
                 "frequency": s.frequency,
                 "notes": s.notes,
                 "created_at": s.created_at,
             })
 
+        # 5. Fetch Medical Test Results
+        raw_test_results = MedicalTestResult.objects.filter(
+            user=target_patient
+        ).order_by('-created_at')
+
+        print(f"🧪 FOUND {raw_test_results.count()} TEST RESULTS FOR {target_patient.username}")
+
+        test_results_data = []
+        for t in raw_test_results:
+            test_results_data.append({
+                "id": t.id,
+                "age": t.age,
+                "gender": t.gender,
+                "esr": t.esr,
+                "crp": t.crp,
+                "rf": t.rf,
+                "anti_ccp": t.anti_ccp,
+                "c3": t.c3,
+                "c4": t.c4,
+                "ana": t.ana,
+                "anti_sm": t.anti_sm,
+                "anti_ro": t.anti_ro,
+                "hla_b27": t.hla_b27,
+                "anti_la": t.anti_la,
+                "anti_dsdna": t.anti_dsdna,
+                "disease_prediction": t.disease_prediction,
+                "confidence": t.confidence,
+                "xai_explanation": t.xai_explanation,
+                "created_at": t.created_at,
+            })
+
+        # 6. Fetch Gene Prediction Reports
+        raw_gene_reports = GenePredictionReport.objects.filter(
+            patient=target_patient
+        ).order_by('-created_at')
+
+        print(f"🧬 FOUND {raw_gene_reports.count()} GENE REPORTS FOR {target_patient.username}")
+
+        gene_reports_data = []
+        for g in raw_gene_reports:
+            gene_reports_data.append({
+                "id": g.id,
+                "risk_percentage": g.risk_percentage,
+                "result_label": g.result_label,
+                "file_name": g.file_name,
+                "created_at": g.created_at,
+                "precision": g.precision,
+                "recall": g.recall,
+                "f1_score": g.f1_score,
+                "confidence_interval": g.confidence_interval,
+                "top_affecting_genes": g.top_affecting_genes,
+                "input_features": g.input_features,
+            })
+
         return Response({
             "patient_name": target_patient.first_name,
             "medicines": list(medicines),
-            "symptoms": symptoms_data 
+            "symptoms": symptoms_data,
+            "test_results": test_results_data,
+            "gene_prediction_reports": gene_reports_data,
         }, status=status.HTTP_200_OK)
 
     except User.DoesNotExist:
-        return Response({"error": "Patient not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"error": "Patient not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
     except Exception as e:
         print(f"❌ SERVER ERROR: {str(e)}")
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    # ... existing imports ...
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -424,3 +624,419 @@ def add_doctor_note(request, symptom_id):
         return Response({"error": "Symptom not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@csrf_exempt
+def check_drug_interaction(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        drug1 = data.get("drug1", "").strip()
+        drug2 = data.get("drug2", "").strip()
+
+        interaction = DrugInteraction.objects.filter(
+            (Q(drug_1__icontains=drug1) & Q(drug_2__icontains=drug2)) |
+            (Q(drug_1__icontains=drug2) & Q(drug_2__icontains=drug1))
+        ).first()
+
+        if interaction:
+            return JsonResponse({
+                "found": True,
+                "description": interaction.interaction_description
+            })
+
+        return JsonResponse({
+            "found": False,
+            "message": "No interaction found"
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)})
+    
+# api/views.py
+import json
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+
+from .models import GeneExpressionFile
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def analyze_drug(request):
+    try:
+        user_id = request.data.get("user_id")
+        drug = request.data.get("drug")
+
+        if not user_id:
+            return Response({"error": "user_id is required."}, status=400)
+
+        if not drug:
+            return Response({"error": "drug is required."}, status=400)
+
+        gene_file = (
+            GeneExpressionFile.objects
+            .filter(user_id=user_id)
+            .order_by("-uploaded_at")
+            .first()
+        )
+
+        if not gene_file:
+            return Response({"error": "No gene expression file found."}, status=404)
+
+        file_path = str(gene_file.file)
+
+        result = analyze_drug_with_file(drug=drug, file_path=file_path)
+
+        return Response({
+            "drug": result.get("drug", drug),
+            "combined_score": result.get("combined_score"),
+            "rank_score": result.get("rank_score"),
+            "ic50": result.get("ic50"),
+            "twin_reduction": result.get("twin_reduction"),
+            "best_model": result.get("best_model", "Unknown"),
+            "marker_x": result.get("marker_x", 170),
+            "marker_y": result.get("marker_y", 220),
+            "message": result.get("message", ""),
+            "file_used": file_path,
+        })
+
+    except Exception as e:
+        return Response({"error": f"Unexpected server error: {str(e)}"}, status=500)
+
+
+MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
+FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
+class GeneUploadView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        file = request.FILES.get("file")
+
+        if not file:
+            return Response(
+                {"error": "No file uploaded"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Optional: restrict upload type
+        if not file.name.lower().endswith(".csv"):
+            return Response(
+                {"error": "Only CSV files are supported"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # 1) Read CSV
+            text_file = TextIOWrapper(file.file, encoding="utf-8")
+            df = pd.read_csv(text_file, sep=",")
+
+            # 2) Convert everything to numeric
+            df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
+
+            if df.empty:
+                return Response(
+                    {"error": "Uploaded file is empty after preprocessing"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # 3) Keep only first row
+            # Remove this if you want batch prediction later
+            df = df.iloc[[0]].copy()
+
+            # 4) Align exactly to training features
+            df = df.reindex(columns=FEATURES, fill_value=0)
+
+            # 5) Validate final shape/order
+            if list(df.columns) != list(FEATURES):
+                return Response(
+                    {"error": "Uploaded gene expression file does not match model features"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # 6) Apply same transform used in training
+            df_log = np.log2(df + 1)
+
+            # 7) Convert to model input
+            X = df_log.to_numpy()
+
+            print("--- PREDICTION DEBUG ---")
+            print(f"User: {request.user}")
+            print(f"File: {file.name}")
+            print(f"Shape: {X.shape}")
+            print(f"Mean expression value: {X.mean()}")
+            print(f"Max expression value: {X.max()}")
+            print(f"Number of non-zero features: {np.count_nonzero(X)}")
+
+            # 8) Predict
+            probability = float(MODEL.predict_proba(X)[0][1])
+            risk_score = round(probability * 100, 2)
+            result_label = "High Risk" if risk_score > 50 else "Low Risk"
+
+            # 9) Save aligned input features as JSON-serializable dict
+            input_features = {
+                str(col): float(val)
+                for col, val in df_log.iloc[0].to_dict().items()
+            }
+
+            # 10) Compute top affecting genes with SHAP
+            top_affecting_genes = {}
+            try:
+                explainer = shap.TreeExplainer(MODEL)
+                shap_values = explainer.shap_values(df_log)
+
+                if isinstance(shap_values, list):
+                    sample_shap = shap_values[1][0]
+                else:
+                    # Handles array output directly
+                    sample_shap = shap_values[0]
+
+                shap_map = dict(zip(df_log.columns, sample_shap))
+                top_items = sorted(
+                    shap_map.items(),
+                    key=lambda x: abs(x[1]),
+                    reverse=True,
+                )[:10]
+
+                top_affecting_genes = {
+                    str(gene): float(value) for gene, value in top_items
+                }
+
+            except Exception as shap_error:
+                print("SHAP ERROR:", str(shap_error))
+                top_affecting_genes = {}
+
+            # 11) Optional model-level metrics
+            precision = None
+            recall = None
+            f1_score = None
+            confidence_interval = None
+
+            # 12) Save report
+            report = GenePredictionReport.objects.create(
+                patient=request.user,
+                risk_percentage=risk_score,
+                result_label=result_label,
+                file_name=file.name,
+                precision=precision,
+                recall=recall,
+                f1_score=f1_score,
+                confidence_interval=confidence_interval,
+                top_affecting_genes=top_affecting_genes,
+                input_features=input_features,
+            )
+
+            return Response(
+                {
+                    "percentage": report.risk_percentage,
+                    "label": report.result_label,
+                    "report_id": report.id,
+                    "filename": report.file_name,
+                    "date": report.created_at,
+                    "top_affecting_genes": report.top_affecting_genes,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            print("GENE UPLOAD ERROR:", str(e))
+            return Response(
+                {"error": f"Gene processing/prediction failed: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def doctor_dashboard_stats(request):
+    doctor_username = request.user.username
+
+    assigned_count = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status="accepted",
+    ).count()
+
+    pending_count = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status="pending",
+    ).count()
+
+    return Response({
+        "assigned_patients": assigned_count,
+        "pending_patients": pending_count,
+    })
+
+
+User = get_user_model()
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def doctor_pending_patients(request):
+    doctor_username = request.user.username
+
+    pending_links = DoctorPatient.objects.filter(
+        doctor_username=doctor_username,
+        status="pending",
+    )
+
+    patients_data = []
+
+    for link in pending_links:
+        patient_info = {
+            "id": None,
+            "username": link.patient_username,
+            "email": link.patient_username,
+            "appointment_date": link.appointment_date,
+            "status": link.status,
+            "first_name": "",
+            "last_name": "",
+        }
+
+        user = User.objects.filter(username=link.patient_username).first()
+        if user:
+            patient_info["id"] = user.id
+            patient_info["email"] = getattr(user, "email", link.patient_username) or link.patient_username
+            patient_info["first_name"] = getattr(user, "first_name", "")
+            patient_info["last_name"] = getattr(user, "last_name", "")
+
+        patients_data.append(patient_info)
+
+    return Response({
+        "count": len(patients_data),
+        "patients": patients_data,
+    })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_risk(request, user_id):
+    try:
+        prediction = GenePredictionReport.objects.filter(
+            patient_id=user_id
+        ).latest("created_at")
+
+        return JsonResponse({
+            "status": "success",
+            "risk_percentage": prediction.risk_percentage,
+        })
+
+    except GenePredictionReport.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "No data found for this patient"},
+            status=404,
+        )
+
+
+ml_service = MLService()
+
+
+@csrf_exempt
+def evaluate(request):
+    if request.method == "GET":
+        return JsonResponse({
+            "message": "API is working. Use POST with file + drug1 + optional drug2."
+        })
+
+    if request.method == "POST":
+        file = request.FILES.get("file")
+        drug1 = request.POST.get("drug1")
+        drug2 = request.POST.get("drug2")
+
+        if file is None:
+            return JsonResponse({"error": "file required"}, status=400)
+
+        try:
+            patient_df = pd.read_csv(file)
+
+            result = ml_service.evaluate(
+                drug1=drug1,
+                drug2=drug2,
+                patient_df=patient_df,
+            )
+
+            return JsonResponse(result)
+
+        except Exception as e:
+            print("EVALUATE ERROR:", str(e))
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+class GeneReportListView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        reports = GenePredictionReport.objects.filter(
+            patient=request.user
+        ).order_by("-created_at")
+
+        serializer = GeneReportSerializer(reports, many=True)
+        return Response(serializer.data)
+
+
+@api_view(["POST"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def save_report(request):
+    try:
+        data = request.data
+        report = data.get("report_data") or {}
+        best = report.get("best_recommendation") or {}
+
+        if "drug_pair" in best:
+            best_drug = " + ".join(best["drug_pair"])
+        else:
+            best_drug = best.get("drug") or "NO_SAFE_DRUG"
+            risk_reduction = best.get("risk_reduction", 0)
+
+        saved = TwinSimulationReport.objects.create(
+            user=request.user,
+            drug1=data.get("drug1", ""),
+            drug2=data.get("drug2", ""),
+            file_name=data.get("file_name", ""),
+            best_drug=best_drug,
+            risk_reduction=risk_reduction,
+            full_report=report,
+        )
+
+        return JsonResponse({
+            "status": "success",
+            "report_id": saved.id,
+        })
+
+    except Exception as e:
+        print("🔥 SAVE REPORT ERROR:", str(e))
+        return JsonResponse({"error": str(e)}, status=500)
+    
+
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_assigned_doctors(request):
+    user = request.user
+
+    doctor_links = DoctorPatient.objects.filter(
+        patient_username=user.username,
+        status='accepted'
+    )
+
+    doctors_data = []
+    for link in doctor_links:
+        try:
+            doctor = User.objects.get(username=link.doctor_username)
+            doctors_data.append({
+                "doctor_id": doctor.id,
+                "doctor_username": doctor.username,
+                "doctor_name": getattr(doctor, 'full_name', doctor.username),
+            })
+        except User.DoesNotExist:
+            continue
+
+    return Response(doctors_data, status=status.HTTP_200_OK)
