@@ -6,14 +6,12 @@ import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
 import '../../models/medicine_model.dart';
-import '../../core/secure_storage.dart';
+
+import '../../core/secure_storage.dart'; // Import your secure storage class
 import '../../viewmodels/providers.dart';
-//done
-class MedHistoryScreen
-    extends ConsumerStatefulWidget {
-  const MedHistoryScreen({
-    super.key,
-  });
+
+class MedHistoryScreen extends ConsumerStatefulWidget {
+  const MedHistoryScreen({super.key});
 
   @override
   ConsumerState<MedHistoryScreen>
@@ -21,24 +19,15 @@ class MedHistoryScreen
           _MedHistoryScreenState();
 }
 
-class _MedHistoryScreenState
-    extends ConsumerState<
-        MedHistoryScreen> {
-  bool _isAdding = false;
 
-  final List<MedicineHistory>
-      medicines = [];
+class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
+  bool _isAdding = false; // Tracks API loading state
+  final List<MedicineHistory> medicines = [];
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
 
-  final GlobalKey<AnimatedListState>
-      _listKey =
-      GlobalKey<AnimatedListState>();
+  // Base configuration for Dio
+  final Dio _dio = Dio(BaseOptions(baseUrl: "http://127.0.0.1:8000/api/"));
 
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl:
-          "http://127.0.0.1:8000/api/",
-    ),
-  );
 
   @override
   void initState() {
@@ -47,25 +36,14 @@ class _MedHistoryScreenState
   }
 
   Future<String?> _getToken() async {
-    final token =
-        await SecureStorage
-            .readToken();
 
-    debugPrint(
-      "DEBUG: Token from SecureStorage -> $token",
-    );
-
+    final token = await SecureStorage.readToken();
+    debugPrint("DEBUG: Token from SecureStorage -> $token");
     return token;
   }
 
-  Future<List<String>>
-      _getDrugSuggestions(
-    String query,
-  ) async {
-    if (query.length < 3) {
-      return [];
-    }
-
+  Future<List<String>> _getDrugSuggestions(String query) async {
+    if (query.length < 3) return [];
     final url = Uri.parse(
       'https://clinicaltables.nlm.nih.gov/api/rxterms/v3/search?terms=$query',
     );
@@ -153,6 +131,12 @@ class _MedHistoryScreenState
           trimmedName.toLowerCase(),
     );
 
+
+    // CHECK 1: Local existence check (Case-insensitive)
+    bool exists = medicines.any(
+      (m) => m.name.toLowerCase() == trimmedName.toLowerCase(),
+    );
+
     if (exists) {
       ScaffoldMessenger.of(context)
           .showSnackBar(
@@ -178,11 +162,13 @@ class _MedHistoryScreenState
         await _getToken();
 
     if (token == null) {
+
       if (mounted) {
         setState(
           () => _isAdding = false,
         );
       }
+
 
       return;
     }
@@ -193,8 +179,8 @@ class _MedHistoryScreenState
         'medicines/',
         data: {
           "name": trimmedName,
-          "added_at": DateTime.now()
-              .toIso8601String(),
+
+          "added_at": DateTime.now().toIso8601String(),
         },
         options: Options(
           headers: {
@@ -204,127 +190,87 @@ class _MedHistoryScreenState
         ),
       );
 
-      if (response.statusCode ==
-          201) {
-        ref.invalidate(
-          medicinesProvider,
-        );
 
-        final newMed =
-            MedicineHistory.fromJson(
-          response.data,
-        );
+      if (response.statusCode == 201) {
+        ref.invalidate(medicinesProvider);
+        final newMed = MedicineHistory.fromJson(response.data);
 
-        if (!mounted) return;
-
+        // 2. UI Update: Add to the top of the list immediately
         setState(() {
-          medicines.insert(
-            0,
-            newMed,
-          );
+          medicines.insert(0, newMed);
         });
+        _listKey.currentState?.insertItem(0);
 
-        _listKey.currentState
-            ?.insertItem(0);
-
-        debugPrint(
-          "Medicine added successfully",
-        );
+        debugPrint("Medicine added successfully");
       }
     } catch (e) {
-      debugPrint(
-        "Add Error: $e",
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            loc
-                .failedToAddMedicine,
-          ),
-          behavior:
-              SnackBarBehavior
-                  .floating,
-          backgroundColor:
-              Colors.redAccent,
+      debugPrint("Add Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to add medicine. Please try again."),
         ),
       );
     } finally {
-      if (mounted) {
-        setState(
-          () => _isAdding = false,
-        );
-      }
+      // 4. Stop Loading
+      setState(() => _isAdding = false);
     }
   }
 
-  Future<void>
-      _removeMedicineFromDB(
-    int index,
-  ) async {
-    final token =
-        await _getToken();
-
-    final medId =
-        medicines[index].id;
+  Future<void> _deleteMedicineFromDB(MedicineHistory med) async {
+    final token = await _getToken();
 
     try {
-      final response =
-          await _dio.delete(
-        'medicines/$medId/',
-        options: Options(
-          headers: {
-            "Authorization":
-                "Bearer $token",
-          },
-        ),
+      final response = await _dio.delete(
+        'medicines/${med.id}/',
+        options: Options(headers: {"Authorization": "Bearer $token"}),
       );
 
-      if (response.statusCode ==
-          204) {
-        ref.invalidate(
-          medicinesProvider,
-        );
-
-        if (!mounted) return;
-
-        final removed =
-            medicines.removeAt(
-          index,
-        );
-
-        _listKey.currentState
-            ?.removeItem(
-          index,
-          (
-            context,
-            animation,
-          ) =>
-              _buildItem(
-            removed,
-            animation,
-          ),
-        );
+      if (response.statusCode == 204) {
+        ref.invalidate(medicinesProvider);
+        debugPrint("Medicine deleted successfully");
       }
     } catch (e) {
-      debugPrint(
-        "Delete Error: $e",
+      debugPrint("Delete Error: $e");
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to delete medicine.")),
       );
     }
   }
 
-  void _confirmDelete(
-    int index,
-  ) {
-    final theme =
-        Theme.of(context);
+  void _dismissMedicine(int index) {
+    final removedMed = medicines[index];
 
-    final loc =
-        AppLocalizations.of(context)!;
+    setState(() {
+      medicines.removeAt(index);
+    });
 
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+          SnackBar(
+            content: Text("${removedMed.name} deleted"),
+            action: SnackBarAction(
+              label: "UNDO",
+              onPressed: () {
+                setState(() {
+                  medicines.insert(index, removedMed);
+                });
+              },
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        )
+        .closed
+        .then((reason) {
+          if (reason != SnackBarClosedReason.action) {
+            _deleteMedicineFromDB(removedMed);
+          }
+        });
+  }
+
+  void _confirmDelete(int index) {
     showDialog(
       context: context,
       builder: (ctx) =>
@@ -353,6 +299,7 @@ class _MedHistoryScreenState
         ),
         actions: [
           TextButton(
+
             onPressed:
                 () => Navigator.pop(
               ctx,
@@ -365,6 +312,7 @@ class _MedHistoryScreenState
                     .primary,
               ),
             ),
+
           ),
           ElevatedButton(
             style:
@@ -377,9 +325,7 @@ class _MedHistoryScreenState
             onPressed: () {
               Navigator.pop(ctx);
 
-              _removeMedicineFromDB(
-                index,
-              );
+              _deleteMedicineFromDB(medicines[index]);
             },
             child: Text(
               loc.delete,
@@ -389,6 +335,7 @@ class _MedHistoryScreenState
       ),
     );
   }
+
 
   Widget _buildItem(
     MedicineHistory med,
@@ -407,6 +354,7 @@ class _MedHistoryScreenState
     String formattedDate =
         loc.justNow;
 
+
     if (med.date != null) {
       DateTime dt = DateTime.parse(
         med.date!,
@@ -418,8 +366,22 @@ class _MedHistoryScreenState
       ).format(dt);
     }
 
-    return SizeTransition(
-      sizeFactor: animation,
+
+    return Dismissible(
+      key: ValueKey(med.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: Colors.redAccent,
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (_) {
+        final index = medicines.indexWhere((m) => m.id == med.id);
+        if (index != -1) {
+          _dismissMedicine(index);
+        }
+      },
       child: Card(
         color:
             theme.colorScheme.surface,
@@ -478,7 +440,10 @@ class _MedHistoryScreenState
                 );
               }
             },
+
           ),
+          subtitle: Text("Added on: $formattedDate"),
+          trailing: const Icon(Icons.swipe_left, color: Colors.grey),
         ),
       ),
     );
@@ -538,6 +503,7 @@ class _MedHistoryScreenState
             const SizedBox(
                 height: 12),
 
+
             Autocomplete<String>(
               optionsBuilder:
                   (
@@ -557,208 +523,77 @@ class _MedHistoryScreenState
                   "Selected suggestion: $selection",
                 );
               },
-              fieldViewBuilder: (
-                context,
-                controller,
-                focusNode,
-                onFieldSubmitted,
-              ) {
-                return TextField(
-                  controller:
-                      controller,
-                  focusNode:
-                      focusNode,
-                  style: TextStyle(
-                    color: theme
-                        .colorScheme
-                        .onSurface,
-                  ),
-                  onSubmitted:
-                      (value) {
-                    if (!_isAdding) {
-                      _addMedicineToDB(
-                        value,
-                      );
 
-                      controller
-                          .clear();
-                    }
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      onSubmitted: (value) {
+                        if (!_isAdding) {
+                          _addMedicineToDB(value);
+                          controller.clear();
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: "Search (e.g., Ibuprofen...)",
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () => controller.clear(),
+                            ),
+                            // Dynamic Plus Button / Loading Spinner
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: _isAdding
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : IconButton(
+                                      icon: const Icon(
+                                        Icons.add_circle,
+                                        color: Colors.blue,
+                                        size: 28,
+                                      ),
+                                      onPressed: () {
+                                        _addMedicineToDB(controller.text);
+                                        controller.clear();
+                                        focusNode.unfocus();
+                                      },
+                                    ),
+                            ),
+                          ],
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    );
                   },
-                  decoration:
-                      InputDecoration(
-                    hintText: loc
-                        .searchMedicineHint,
-                    hintStyle:
-                        TextStyle(
-                      color: theme
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(
-                              0.5),
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: theme
-                          .colorScheme
-                          .primary,
-                    ),
-                    suffixIcon:
-                        Row(
-                      mainAxisSize:
-                          MainAxisSize
-                              .min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.clear,
-                            color: theme
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(
-                                    0.6),
-                          ),
-                          onPressed:
-                              () =>
-                                  controller
-                                      .clear(),
-                        ),
-                        Padding(
-                          padding:
-                              const EdgeInsets.only(
-                            right:
-                                8.0,
-                          ),
-                          child: _isAdding
-                              ? SizedBox(
-                                  width:
-                                      24,
-                                  height:
-                                      24,
-                                  child:
-                                      CircularProgressIndicator(
-                                    strokeWidth:
-                                        2,
-                                    color: theme
-                                        .colorScheme
-                                        .primary,
-                                  ),
-                                )
-                              : IconButton(
-                                  icon:
-                                      Icon(
-                                    Icons
-                                        .add_circle,
-                                    color: theme
-                                        .colorScheme
-                                        .primary,
-                                    size:
-                                        28,
-                                  ),
-                                  onPressed:
-                                      () {
-                                    _addMedicineToDB(
-                                      controller
-                                          .text,
-                                    );
-
-                                    controller
-                                        .clear();
-
-                                    focusNode
-                                        .unfocus();
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                    filled: true,
-                    fillColor: theme
-                        .inputDecorationTheme
-                        .fillColor,
-                    border:
-                        OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                              10),
-                    ),
-                    enabledBorder:
-                        OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                              10),
-                      borderSide:
-                          BorderSide(
-                        color: theme
-                            .dividerColor
-                            .withOpacity(
-                                0.2),
-                      ),
-                    ),
-                    focusedBorder:
-                        OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                              10),
-                      borderSide:
-                          BorderSide(
-                        color: theme
-                            .colorScheme
-                            .primary,
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
 
-            const SizedBox(
-                height: 24),
-
-            Text(
-              loc.patientMedicines,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight:
-                    FontWeight.bold,
-                color: theme
-                    .colorScheme
-                    .onSurface,
-              ),
+            const SizedBox(height: 24),
+            const Text(
+              "Patient Medicines:",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
-            const SizedBox(
-                height: 8),
+            const SizedBox(height: 8),
 
             Expanded(
               child: medicines.isEmpty
-                  ? Center(
-                      child: Text(
-                        loc
-                            .noMedicinesAdded,
-                        style:
-                            TextStyle(
-                          color: theme
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(
-                                  0.65),
-                        ),
-                      ),
-                    )
-                  : AnimatedList(
-                      key: _listKey,
-                      initialItemCount:
-                          medicines
-                              .length,
-                      itemBuilder: (
-                        context,
-                        index,
-                        animation,
-                      ) {
-                        return _buildItem(
-                          medicines[index],
-                          animation,
-                        );
+                  ? const Center(child: Text("No medicines added yet."))
+                  : ListView.builder(
+                      itemCount: medicines.length,
+                      itemBuilder: (context, index) {
+                        return _buildItem(medicines[index]);
+
                       },
                     ),
             ),

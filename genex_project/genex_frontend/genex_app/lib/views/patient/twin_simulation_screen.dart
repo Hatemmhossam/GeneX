@@ -62,7 +62,7 @@ class _TwinSimulationScreenState
           await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv', 'txt'],
-        withData: kIsWeb,
+        withData: true,
       );
 
       if (picked != null &&
@@ -90,6 +90,56 @@ class _TwinSimulationScreenState
     }
   }
 
+  // Future<void> evaluate() async {
+  //   if (selectedFile == null) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text("Please upload the patient CSV first.")),
+  //     );
+  //     return;
+  //   }
+
+  //   if (geneDrug1Controller.text.trim().isEmpty) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text("Please enter at least Drug 1.")),
+  //     );
+  //     return;
+  //   }
+
+  //   setState(() => loading = true);
+
+  //   try {
+  //     // final res = await apiService
+  //     //     .evaluateTwinSimulation(
+  //     //       file: selectedFile!,
+  //     //       drug1: geneDrug1Controller.text.trim(),
+  //     //       drug2: geneDrug2Controller.text.trim(),
+  //     //     )
+  //     //     .timeout(const Duration(seconds: 30));
+  //         final drugs = [
+  //         geneDrug1Controller.text.trim(),
+  //         if (geneDrug2Controller.text.trim().isNotEmpty)
+  //           geneDrug2Controller.text.trim(),
+  //       ];
+
+  //       final res = await apiService
+  //           .runTwinSimulation(drugs: drugs)
+  //           .timeout(const Duration(seconds: 120));
+
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       result = res;
+  //       loading = false;
+  //     });
+  //   } catch (e) {
+  //     if (!mounted) return;
+
+  //     setState(() => loading = false);
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text("Error: $e")));
+  //   }
+  // }
   Future<void> evaluate() async {
     final loc =
         AppLocalizations.of(context)!;
@@ -120,33 +170,22 @@ class _TwinSimulationScreenState
       return;
     }
 
-    setState(() => loading = true);
 
-    try {
-      final res = await apiService
-          .evaluateTwinSimulation(
-            file: selectedFile!,
-            drug1:
-                geneDrug1Controller.text
-                    .trim(),
-            drug2:
-                geneDrug2Controller.text
-                    .trim(),
-          )
-          .timeout(
-            const Duration(
-              seconds: 30,
-            ),
-          );
+  setState(() => loading = true);
 
-      if (!mounted) return;
 
-      setState(() {
-        result = res;
-        loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
+  try {
+    await apiService.uploadGeneFile(file: selectedFile!);
+
+    final drugs = [
+      geneDrug1Controller.text.trim(),
+      if (geneDrug2Controller.text.trim().isNotEmpty)
+        geneDrug2Controller.text.trim(),
+    ];
+
+    final res = await apiService
+        .runTwinSimulation(drugs: drugs)
+        .timeout(const Duration(seconds: 120));
 
       setState(() => loading = false);
 
@@ -161,7 +200,9 @@ class _TwinSimulationScreenState
         ),
       );
     }
+
   }
+}
 
   Future<void> saveReport() async {
     final loc =
@@ -261,6 +302,7 @@ class _TwinSimulationScreenState
               true) {
             interactionResult =
                 '${loc.interactionFound}\n\n${data['drug1']} + ${data['drug2']}\n\n${data['description']}';
+
           } else {
             interactionResult =
                 data['message'] ??
@@ -514,9 +556,253 @@ class _TwinSimulationScreenState
     );
   }
 
+<
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+  // =========================
+  // DRUG TO GENE UI
+  // =========================
+  Widget buildDrugGeneSection() {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Drug to Gene Interaction",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "Upload a patient file, enter the selected drug(s), and review the result in a cleaner structured layout.",
+              style: TextStyle(
+                fontSize: 13.5,
+                color: Colors.grey.shade700,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: pickFile,
+                icon: const Icon(Icons.upload_file_rounded),
+                label: Text(
+                  selectedFile == null ? "Upload Patient CSV" : "Change File",
+                ),
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+            if (selectedFile != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "Selected file: ${selectedFile!.name}",
+                        style: TextStyle(
+                          color: Colors.green.shade800,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            buildInputField(
+              controller: geneDrug1Controller,
+              label: "Drug 1",
+              icon: Icons.medication_rounded,
+            ),
+            const SizedBox(height: 12),
+            buildInputField(
+              controller: geneDrug2Controller,
+              label: "Drug 2",
+              icon: Icons.medication_outlined,
+              optional: true,
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: loading ? null : evaluate,
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: loading
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      )
+                    : const Text(
+                        "Evaluate",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.analytics_outlined, size: 48, color: Colors.grey.shade500),
+          const SizedBox(height: 12),
+          const Text(
+            "No evaluation yet",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Run the simulation and the results will appear here in a more readable format.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildSummaryCard({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.blue.shade700),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildSummaryTab() {
+    if (result == null) return const SizedBox.shrink();
+
+    final best = result!["best_recommendation"];
+
+    if (best == null) {
+      return const Center(child: Text("No best recommendation found"));
+    }
+
+    return ListView(
+      children: [
+        buildSummaryCard(
+          title: "Best Drug",
+          // value: best["drug_pair"]?.toString() ?? "-",
+          value: best["drug_pair"]?.toString() ?? best["drug"]?.toString() ?? "-",
+          icon: Icons.star_rounded,
+        ),
+        const SizedBox(height: 12),
+        buildSummaryCard(
+          title: "Risk Reduction (%)",
+          // value: best["risk_reduction"]?.toStringAsFixed(2) ?? "-",
+          value: best["risk_reduction_pct"] != null
+            ? (best["risk_reduction_pct"] as num).toStringAsFixed(2)
+            : "-",
+          icon: Icons.trending_down_rounded,
+        ),
+      ],
+    );
+  }
+
+  Widget buildPrimitiveValue(dynamic value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Text(
+        value?.toString() ?? "-",
+        style: const TextStyle(fontSize: 14, height: 1.45),
+      ),
+    );
+  }
+
 
     final loc =
         AppLocalizations.of(context)!;

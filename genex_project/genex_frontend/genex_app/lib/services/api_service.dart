@@ -8,10 +8,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import 'dart:typed_data';
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   final Dio _dio;
-
+ final String baseUrl = "http://127.0.0.1:8000"; 
   ApiService({Dio? dio})
     : _dio =
           dio ??
@@ -310,6 +315,35 @@ class ApiService {
     }
   }
 
+Future<Map<String, dynamic>> runTwinSimulation({
+  required List<String> drugs,
+}) async {
+  final token = await getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception("No auth token found. Please login again.");
+  }
+
+  final response = await http.post(
+    Uri.parse("$baseUrl/api/twin/run/"),
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token",
+    },
+    body: jsonEncode({
+      "drugs": drugs,
+    }),
+  );
+
+  final data = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(data["error"] ?? "Twin simulation failed");
+  }
+
+  return Map<String, dynamic>.from(data);
+}
+
   // Future<void> saveTwinReport({
   //   required Map<String, dynamic> result,
   //   required String drug1,
@@ -368,4 +402,51 @@ class ApiService {
       rethrow;
     }
   }
+
+Future<String?> getToken() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString("token");
+}
+
+Future<void> uploadGeneFile({
+  required PlatformFile file,
+}) async {
+  final uri = Uri.parse("$baseUrl/api/twin/upload-gene-file/");
+  final request = http.MultipartRequest("POST", uri);
+
+  final token = await getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception("No auth token found. Please login again.");
+  }
+
+  request.headers["Authorization"] = "Bearer $token";
+
+  if (file.bytes != null) {
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        "file",
+        file.bytes!,
+        filename: file.name,
+      ),
+    );
+  } else if (file.path != null) {
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        "file",
+        file.path!,
+        filename: file.name,
+      ),
+    );
+  } else {
+    throw Exception("No file data found");
+  }
+
+  final streamedResponse = await request.send();
+  final response = await http.Response.fromStream(streamedResponse);
+
+  if (response.statusCode != 200 && response.statusCode != 201) {
+    throw Exception("Gene file upload failed: ${response.body}");
+  }
+}
 }

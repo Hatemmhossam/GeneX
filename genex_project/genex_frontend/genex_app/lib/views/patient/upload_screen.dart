@@ -36,7 +36,9 @@ class _UploadScreenState extends State<UploadScreen> {
 
   final _formKey = GlobalKey<FormState>();
 
-  final _ageController = TextEditingController();
+
+  // --- Controllers ---
+
   final _esrController = TextEditingController();
   final _crpController = TextEditingController();
   final _antiCcpController = TextEditingController();
@@ -57,7 +59,6 @@ class _UploadScreenState extends State<UploadScreen> {
 
   @override
   void dispose() {
-    _ageController.dispose();
     _esrController.dispose();
     _crpController.dispose();
     _antiCcpController.dispose();
@@ -68,34 +69,62 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> pickFile() async {
-    final loc = AppLocalizations.of(context)!;
+
+    //choose file format based on type of file
+
+    List<String> allowedExtensions;
+
+    switch (_selectedType) {
+      case UploadType.vcf:
+        allowedExtensions = ['vcf'];
+        break;
+
+      case UploadType.geneExpression:
+        allowedExtensions = ['csv', 'txt'];
+        break;
+
+      case UploadType.mri:
+        // change these if your backend expects other MRI formats
+        allowedExtensions = ['nii', 'nii.gz', 'dcm', 'zip'];
+        break;
+
+      case UploadType.tests:
+        return; // no file picker needed for tests
+    }
 
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['vcf', 'txt', 'csv', 'jpg', 'jpeg', 'png', 'nii'],
+      allowedExtensions: allowedExtensions,
       withData: true,
     );
 
-    if (result == null) {
-      _showErrorSnackBar(loc.noFileSelected);
-      return;
-    }
+    if (result != null && result.files.isNotEmpty) {
+      final picked = result.files.single;
 
-    setState(() {
-      _pickedFile = result.files.single;
-      selectedFileName = result.files.single.name;
-    });
+      setState(() {
+        _pickedFile = picked;
+        selectedFileName = picked.name;
+      });
 
-    if (_selectedType == UploadType.geneExpression ||
-        _selectedType == UploadType.mri) {
-      await _uploadAndAnalyze(result.files.single);
+      if (_selectedType == UploadType.geneExpression) {
+        _uploadAndAnalyze(picked);
+      } else if (_selectedType == UploadType.mri) {
+        _uploadMRIAndAnalyze(picked);
+      }
+
     }
   }
 
   Future<void> _uploadAndAnalyze(PlatformFile file) async {
-    final loc = AppLocalizations.of(context)!;
+    
+    //analyze gene expression file and get risk score
 
-    setState(() => _isLoading = true);
+    // 1. Show Loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
 
     try {
       final request = http.MultipartRequest(
@@ -160,8 +189,181 @@ class _UploadScreenState extends State<UploadScreen> {
     }
   }
 
-  Future<void> sendTestsToBackend() async {
+
     final loc = AppLocalizations.of(context)!;
+
+  Future<void> _uploadMRIAndAnalyze(PlatformFile file) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final token = await SecureStorage.readToken();
+
+      if (token == null || token.isEmpty) {
+        Navigator.pop(context);
+        _showErrorSnackBar("You are not logged in. Please sign in again.");
+        return;
+      }
+
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse("${baseUrl}mri-predict-gradcam/"),
+      );
+
+      request.headers['Authorization'] = 'Bearer $token';
+
+      if (file.bytes != null) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            file.bytes!,
+            filename: file.name,
+          ),
+        );
+      } else if (file.path != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath('file', file.path!),
+        );
+      } else {
+        throw Exception("File data is inaccessible.");
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final gradcamUrls = Map<String, dynamic>.from(data['gradcam_urls']);
+        _showMRIResultDialog(
+          riskScore: (data['risk_score'] as num).toDouble(),
+          prediction: data['prediction'].toString(),
+          gradcamUrls: gradcamUrls,
+          explanation:
+              data['explanation']?.toString() ??
+              "Highlighted regions show the areas that influenced the MRI abnormality prediction.",
+        );
+      } else {
+        String errorMessage = "MRI analysis failed: ${response.statusCode}";
+
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['error'] ?? errorMessage;
+        } catch (_) {
+          errorMessage = response.body;
+        }
+
+        _showErrorSnackBar(errorMessage);
+      }
+    } catch (e) {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      _showErrorSnackBar("MRI Upload Failed: $e");
+    }
+  }
+
+  void _showMRIResultDialog({
+    required double riskScore,
+    required String prediction,
+    required Map<String, dynamic> gradcamUrls,
+    required String explanation,
+  }) {
+    final percentage = riskScore <= 1 ? riskScore * 100 : riskScore;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("MRI Result: $prediction"),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Abnormality Risk Score:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "${percentage.toStringAsFixed(1)}%",
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: percentage >= 55 ? Colors.red : Colors.green,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              const Text(
+                "Grad-CAM Interpretation:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+
+              _buildGradcamImage("Axial", gradcamUrls["axial"]),
+              const SizedBox(height: 12),
+
+              _buildGradcamImage("Coronal", gradcamUrls["coronal"]),
+              const SizedBox(height: 12),
+
+              _buildGradcamImage("Sagittal", gradcamUrls["sagittal"]),
+
+              const SizedBox(height: 12),
+              Text(explanation),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Close"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  //show dialog with risk percentage and label after uploading gene expression file
+  void _showResultDialogg(double percentage, String label) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Analysis Results"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Rheumatoid Arthritis Probability:"),
+            const SizedBox(height: 10),
+            Text(
+              "$percentage%",
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: percentage > 50 ? Colors.red : Colors.green,
+              ),
+            ),
+            Text("Classification: $label"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> sendTestsToBackend() async {
+    //send medical tests to backend and get analysis
 
     if (!_formKey.currentState!.validate()) {
       _showErrorSnackBar(loc.fixFormErrors);
@@ -179,9 +381,9 @@ class _UploadScreenState extends State<UploadScreen> {
 
     final url = Uri.parse("${baseUrl}predict_xai/");
 
-    final requestBody = {
-      "Age": int.tryParse(_ageController.text) ?? 0,
-      "Gender": _selectedGender,
+
+    final Map<String, dynamic> requestBody = {
+
       "ESR": double.tryParse(_esrController.text),
       "CRP": double.tryParse(_crpController.text),
       "RF": double.tryParse(_rfController.text),
@@ -273,6 +475,7 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   void _showResultDialog({
+    //show results after getting analysis from AI for medical tests
     required String prediction,
     required double confidence,
     required String explanation,
@@ -328,7 +531,9 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   String _titleForType(UploadType type) {
+<
     final loc = AppLocalizations.of(context)!;
+
 
     switch (type) {
       case UploadType.vcf:
@@ -377,6 +582,7 @@ class _UploadScreenState extends State<UploadScreen> {
     final title = _titleForType(_selectedType);
 
     return Scaffold(
+
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(loc.medicalAnalysisUpload),
@@ -760,6 +966,28 @@ class _UploadScreenState extends State<UploadScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGradcamImage(String title, dynamic url) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+
+        const SizedBox(height: 6),
+
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            url.toString(),
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Text("Could not load $title Grad-CAM image.");
+            },
+          ),
+        ),
+      ],
     );
   }
 }

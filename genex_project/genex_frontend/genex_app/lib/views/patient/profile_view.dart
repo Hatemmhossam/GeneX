@@ -58,7 +58,7 @@ class _ProfileScreenState
 
       return;
     }
-
+    //retrieve api from urls.py that takes functions from views.py
     try {
       final url = Uri.parse(
         'http://localhost:8000/api/profile/',
@@ -208,6 +208,7 @@ Widget build(BuildContext context) {
   if (isFetching) {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+
       body: Center(
         child: CircularProgressIndicator(
           color: theme.colorScheme.primary,

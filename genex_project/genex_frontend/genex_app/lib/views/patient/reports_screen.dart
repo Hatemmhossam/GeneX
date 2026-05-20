@@ -294,84 +294,8 @@ class _ReportCard extends StatelessWidget {
                     CrossAxisAlignment
                         .start,
                 children: [
-                  Text(
-                    loc
-                        .modelClassificationReport,
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight
-                              .bold,
-                      fontSize: 14,
-                    ),
-                  ),
 
-                  const SizedBox(
-                      height: 12),
-
-                  _MetricRow(
-                    label:
-                        loc.precision,
-                    value:
-                        report[
-                            'precision'],
-                    color:
-                        Colors.blue,
-                  ),
-
-                  _MetricRow(
-                    label:
-                        loc.recall,
-                    value:
-                        report[
-                            'recall'],
-                    color: Colors
-                        .orange,
-                  ),
-
-                  _MetricRow(
-                    label:
-                        loc.f1Score,
-                    value:
-                        report[
-                            'f1_score'],
-                    color: Colors
-                        .purple,
-                  ),
-
-                  const SizedBox(
-                      height: 12),
-
-                  Row(
-                    children: [
-                      Text(
-                        "${loc.confidenceInterval}: ",
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight
-                                  .w500,
-                        ),
-                      ),
-
-                      Expanded(
-                        child: Text(
-                          report['confidence_interval']
-                                  ?.toString() ??
-                              "N/A",
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(
-                      height: 16),
-
+                  const SizedBox(height: 16),
                   const Divider(),
 
                   const SizedBox(

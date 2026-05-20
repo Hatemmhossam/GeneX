@@ -1,5 +1,5 @@
-// lib/views/shared/chat_screen.dart
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -9,13 +9,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import '../../models/chat_message_model.dart';
 import '../../viewmodels/providers.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class ChatScreen extends ConsumerStatefulWidget {
   final int conversationId;
   final String receiverName;
-
   const ChatScreen({
     super.key,
     required this.conversationId,
@@ -27,12 +29,76 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
+  final FlutterTts _flutterTts = FlutterTts();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+
+  bool _isListening = false;
+
+  Future<void> _startListening() async {
+    bool available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'done') {
+          setState(() {
+            _isListening = false;
+          });
+        }
+      },
+      onError: (error) {
+        setState(() {
+          _isListening = false;
+        });
+      },
+    );
+
+    if (available) {
+      setState(() {
+        _isListening = true;
+      });
+
+      _speech.listen(
+        onResult: (result) {
+          setState(() {
+            _messageController.text = result.recognizedWords;
+
+            _messageController.selection = TextSelection.fromPosition(
+              TextPosition(offset: _messageController.text.length),
+            );
+          });
+        },
+      );
+    }
+  }
+
+  Future<void> _stopListening() async {
+    await _speech.stop();
+
+    setState(() {
+      _isListening = false;
+    });
+  }
+
+  Future<void> _speak(String text) async {
+    if (text.trim().isEmpty) return;
+
+    await _flutterTts.stop();
+    await _flutterTts.setLanguage("en-US");
+    await _flutterTts.setSpeechRate(0.45);
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
+    await _flutterTts.speak(text);
+  }
+
+  Future<void> _stopSpeaking() async {
+    await _flutterTts.stop();
+  }
+
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   WebSocketChannel? _channel;
 
   List<ChatMessageModel> messages = [];
+  StreamSubscription? _subscription;
 
   bool isLoading = true;
   bool isSendingAttachment = false;
@@ -64,7 +130,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     currentUserId = authState.user?.id?.toString();
     currentUserRole = authState.user?.role?.toString();
 
-    final chatService = ref.read(chatServiceProvider);
+
+      final oldMessages = await chatService
+          .getMessages(widget.conversationId)
+          .timeout(const Duration(seconds: 8));
+      await chatService.markMessagesAsRead(widget.conversationId);
+      final wsUrl = await chatService.buildWebSocketUrl(widget.conversationId);
+
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+
+      _subscription = _channel!.stream.listen(
+        (data) {
+          final decoded = jsonDecode(data);
+          final message = ChatMessageModel.fromJson(decoded);
+          final isMine = message.senderId.toString() == currentUserId;
+
+          if (!mounted) return;
+
+          setState(() {
+            final alreadyExists = messages.any((m) => m.id == message.id);
+            if (!alreadyExists) {
+              messages.insert(0, message);
+            }
+          });
+
+          if (!isMine) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${message.senderUsername}: ${message.content}'),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
 
     final oldMessages = await chatService
         .getMessages(widget.conversationId)
@@ -74,7 +172,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .markMessagesAsRead(widget.conversationId)
         .timeout(const Duration(seconds: 12));
 
-    final wsUrl = await chatService.buildWebSocketUrl(widget.conversationId);
+
+      setState(() {
+        messages = oldMessages.reversed.toList();
+        isLoading = false;
+      });
 
     _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
@@ -178,6 +280,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
       }
     });
+
   }
 
   String _formatTime(DateTime dt) {
@@ -298,16 +401,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         child: Column(
-          crossAxisAlignment:
-              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMine
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             if (message.content.isNotEmpty)
-              Text(
-                message.content,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isMine ? Colors.white : theme.colorScheme.onSurface,
-                  height: 1.4,
-                ),
+
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Flexible(
+                    child: Text(
+                      message.content,
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () => _speak(message.content),
+                    child: const Icon(Icons.volume_up_outlined, size: 18),
+                  ),
+                ],
               ),
             if (message.attachmentUrl != null) ...[
               if (message.content.isNotEmpty) const SizedBox(height: 10),
@@ -358,6 +473,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ? Colors.white70
                     : theme.colorScheme.onSurface.withOpacity(0.48),
               ),
+
             ),
           ],
         ),
@@ -567,8 +683,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+    _subscription?.cancel();
     _scrollController.dispose();
     _channel?.sink.close();
+    _flutterTts.stop();
     super.dispose();
   }
 
@@ -577,6 +695,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         elevation: 0,
@@ -603,6 +722,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
       ),
+
       body: isLoading
           ? Center(
               child: CircularProgressIndicator(
@@ -610,43 +730,119 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             )
           : error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent),
+
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: messages.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No messages yet. Start the conversation.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          reverse: true,
+                          padding: const EdgeInsets.all(12),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            final message = messages[index];
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_shouldShowDateHeader(index))
+                                  _buildDateHeader(message),
+                                _buildMessageBubble(message),
+                              ],
+                            );
+                          },
+                        ),
+                ),
+                _buildQuickReplyChips(),
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: _pickAndUploadFile,
+                          icon: const Icon(Icons.attach_file),
+                          tooltip: 'Upload File',
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: 'Type a message...',
+                              filled: true,
+                              fillColor: Colors.grey.shade100,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            onSubmitted: (_) => _sendMessage(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        CircleAvatar(
+                          backgroundColor: _isListening
+                              ? Colors.red
+                              : Theme.of(context).colorScheme.secondary,
+                          child: IconButton(
+                            onPressed: () {
+                              if (_isListening) {
+                                _stopListening();
+                              } else {
+                                _startListening();
+                              }
+                            },
+                            icon: Icon(
+                              _isListening ? Icons.mic : Icons.mic_none,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        CircleAvatar(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                          child: IconButton(
+                            onPressed: _sendMessage,
+                            icon: const Icon(
+                              Icons.send,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                )
-              : Column(
-                  children: [
-                    Expanded(
-                      child: messages.isEmpty
-                          ? _buildEmptyState()
-                          : ListView.builder(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                              itemCount: messages.length,
-                              itemBuilder: (context, index) {
-                                final message = messages[index];
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (_shouldShowDateHeader(index))
-                                      _buildDateHeader(message),
-                                    _buildMessageBubble(message),
-                                  ],
-                                );
-                              },
-                            ),
-                    ),
-                    _buildQuickReplyChips(),
-                    _buildInputBar(),
-                  ],
                 ),
+              ],
+            ),
     );
   }
 }
