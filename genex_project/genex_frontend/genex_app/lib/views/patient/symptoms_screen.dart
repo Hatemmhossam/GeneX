@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import '../../core/secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../viewmodels/providers.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
-//done
+
+import '../../core/secure_storage.dart';
+import '../../viewmodels/providers.dart';
+import '../../widgets/loading_button.dart';
+import '../../widgets/premium_card.dart';
+
 class SymptomReportScreen extends ConsumerStatefulWidget {
   const SymptomReportScreen({super.key});
 
@@ -13,8 +16,7 @@ class SymptomReportScreen extends ConsumerStatefulWidget {
       _SymptomReportScreenState();
 }
 
-class _SymptomReportScreenState
-    extends ConsumerState<SymptomReportScreen> {
+class _SymptomReportScreenState extends ConsumerState<SymptomReportScreen> {
   final Dio _dio = Dio(
     BaseOptions(
       baseUrl: "http://localhost:8000/api/",
@@ -22,17 +24,11 @@ class _SymptomReportScreenState
   );
 
   final _formKey = GlobalKey<FormState>();
-
-  final _notesController =
-      TextEditingController();
+  final _notesController = TextEditingController();
 
   bool _isAdding = false;
-
   String? _selectedSymptom;
-
-  String _selectedFrequency =
-      'Occasionally';
-
+  String _selectedFrequency = 'Occasionally';
   double _severity = 5.0;
 
   final List<String> _autoimmuneSymptoms = [
@@ -54,19 +50,20 @@ class _SymptomReportScreenState
     'Rarely',
   ];
 
-  Future<void> _submitReport() async {
-    final loc =
-        AppLocalizations.of(context)!;
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
 
-    if (!_formKey.currentState!
-            .validate() ||
-        _selectedSymptom == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+  Future<void> _submitReport() async {
+    final loc = AppLocalizations.of(context)!;
+
+    if (!_formKey.currentState!.validate() || _selectedSymptom == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            loc.pleaseSelectSymptom,
-          ),
+          content: Text(loc.pleaseSelectSymptom),
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -74,43 +71,33 @@ class _SymptomReportScreenState
 
     setState(() => _isAdding = true);
 
-    final token =
-        await SecureStorage.readToken();
+    final token = await SecureStorage.readToken();
 
     try {
       final response = await _dio.post(
         'symptoms/',
         data: {
-          "symptom_name":
-              _selectedSymptom,
-          "severity":
-              _severity.toInt(),
-          "frequency":
-              _selectedFrequency,
-          "notes":
-              _notesController.text
-                  .trim(),
+          "symptom_name": _selectedSymptom,
+          "severity": _severity.toInt(),
+          "frequency": _selectedFrequency,
+          "notes": _notesController.text.trim(),
         },
         options: Options(
           headers: {
-            "Authorization":
-                "Bearer $token",
+            "Authorization": "Bearer $token",
           },
         ),
       );
 
       if (response.statusCode == 201) {
-        ref.invalidate(
-          symptomsProvider,
-        );
+        ref.invalidate(symptomsProvider);
 
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              loc
-                  .symptomReportedSuccessfully,
-            ),
+            content: Text(loc.symptomReportedSuccessfully),
+            behavior: SnackBarBehavior.floating,
           ),
         );
 
@@ -119,245 +106,227 @@ class _SymptomReportScreenState
         setState(() {
           _selectedSymptom = null;
           _severity = 5.0;
+          _selectedFrequency = 'Occasionally';
         });
       }
     } catch (e) {
-      debugPrint(
-        "Symptom Add Error: $e",
-      );
+      debugPrint("Symptom Add Error: $e");
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            loc.failedToSaveReport,
-          ),
+          content: Text(loc.failedToSaveReport),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.redAccent,
         ),
       );
     } finally {
-      setState(
-        () => _isAdding = false,
-      );
+      if (mounted) {
+        setState(() => _isAdding = false);
+      }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final loc =
-        AppLocalizations.of(context)!;
+  Widget _buildHeroCard() {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
 
-    return SingleChildScrollView(
-      padding:
-          const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Text(
-              loc.dailySymptomTracker,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight:
-                    FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0F172A),
+            theme.colorScheme.primary,
+            const Color(0xFF1D4ED8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.26),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.16),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.22),
               ),
             ),
-            Text(
-              loc
-                  .dailySymptomTrackerDescription,
-              style: const TextStyle(
-                color: Colors.grey,
-              ),
+            child: const Icon(
+              Icons.monitor_heart_rounded,
+              color: Colors.white,
+              size: 36,
             ),
-            const SizedBox(height: 30),
-
-            DropdownButtonFormField<
-                String>(
-              value: _selectedSymptom,
-              decoration: InputDecoration(
-                labelText:
-                    loc.whatAreYouExperiencing,
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                              10),
-                ),
-                prefixIcon:
-                    const Icon(
-                  Icons.sick,
-                ),
-              ),
-              items:
-                  _autoimmuneSymptoms
-                      .map((s) {
-                return DropdownMenuItem(
-                  value: s,
-                  child: Text(s),
-                );
-              }).toList(),
-              onChanged: (val) =>
-                  setState(
-                () => _selectedSymptom =
-                    val,
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            Text(
-              "${loc.severityLevel}: ${_severity.toInt()}/10",
-              style:
-                  const TextStyle(
-                fontSize: 16,
-                fontWeight:
-                    FontWeight.w600,
-              ),
-            ),
-
-            Slider(
-              value: _severity,
-              min: 0,
-              max: 10,
-              divisions: 10,
-              label: _severity
-                  .round()
-                  .toString(),
-              activeColor:
-                  _severity > 7
-                      ? Colors.red
-                      : Colors.teal,
-              onChanged: (val) =>
-                  setState(
-                () => _severity = val,
-              ),
-            ),
-
-            Row(
-              mainAxisAlignment:
-                  MainAxisAlignment
-                      .spaceBetween,
+          ),
+          const SizedBox(width: 22),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  loc.mild,
-                  style:
-                      const TextStyle(
-                    color: Colors.grey,
+                  loc.dailySymptomTracker,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
+                const SizedBox(height: 8),
                 Text(
-                  loc.unbearable,
-                  style:
-                      const TextStyle(
-                    color: Colors.grey,
+                  loc.dailySymptomTrackerDescription,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.82),
+                    height: 1.45,
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            const SizedBox(height: 25),
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
 
-            DropdownButtonFormField<
-                String>(
-              value: _selectedFrequency,
-              decoration: InputDecoration(
-                labelText:
-                    loc.howOften,
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                              10),
-                ),
-                prefixIcon:
-                    const Icon(
-                  Icons.timer,
-                ),
-              ),
-              items:
-                  _frequencies.map(
-                (f) {
-                  return DropdownMenuItem(
-                    value: f,
-                    child: Text(f),
-                  );
-                },
-              ).toList(),
-              onChanged: (val) =>
-                  setState(
-                () =>
-                    _selectedFrequency =
-                        val!,
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            TextFormField(
-              controller:
-                  _notesController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: loc
-                    .additionalNotes,
-                hintText:
-                    loc.notesHint,
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                              10),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child:
-                  ElevatedButton(
-                style:
-                    ElevatedButton
-                        .styleFrom(
-                  backgroundColor:
-                      Colors.teal,
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                                10),
-                  ),
-                ),
-                onPressed:
-                    _isAdding
-                        ? null
-                        : _submitReport,
-                child: _isAdding
-                    ? const CircularProgressIndicator(
-                        color:
-                            Colors
-                                .white,
-                      )
-                    : Text(
-                        loc
-                            .logSymptom,
-                        style:
-                            const TextStyle(
-                          color: Colors
-                              .white,
-                          fontSize: 16,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeroCard(),
+                const SizedBox(height: 24),
+                PremiumCard(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: _selectedSymptom,
+                        decoration: InputDecoration(
+                          labelText: loc.whatAreYouExperiencing,
+                          prefixIcon: Icon(
+                            Icons.sick_rounded,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        items: _autoimmuneSymptoms.map((s) {
+                          return DropdownMenuItem(
+                            value: s,
+                            child: Text(s),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() => _selectedSymptom = val);
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        "${loc.severityLevel}: ${_severity.toInt()}/10",
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-              ),
+                      Slider(
+                        value: _severity,
+                        min: 0,
+                        max: 10,
+                        divisions: 10,
+                        label: _severity.round().toString(),
+                        activeColor: _severity > 7
+                            ? Colors.redAccent
+                            : theme.colorScheme.primary,
+                        inactiveColor:
+                            theme.colorScheme.primary.withOpacity(0.18),
+                        onChanged: (val) {
+                          setState(() => _severity = val);
+                        },
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            loc.mild,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color:
+                                  theme.colorScheme.onSurface.withOpacity(0.55),
+                            ),
+                          ),
+                          Text(
+                            loc.unbearable,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color:
+                                  theme.colorScheme.onSurface.withOpacity(0.55),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      DropdownButtonFormField<String>(
+                        value: _selectedFrequency,
+                        decoration: InputDecoration(
+                          labelText: loc.howOften,
+                          prefixIcon: Icon(
+                            Icons.timer_rounded,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        items: _frequencies.map((f) {
+                          return DropdownMenuItem(
+                            value: f,
+                            child: Text(f),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() => _selectedFrequency = val!);
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      TextFormField(
+                        controller: _notesController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: loc.additionalNotes,
+                          hintText: loc.notesHint,
+                          prefixIcon: Icon(
+                            Icons.notes_rounded,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      LoadingButton(
+                        loading: _isAdding,
+                        onPressed: _submitReport,
+                        label: loc.logSymptom,
+                        icon: Icons.add_chart_rounded,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

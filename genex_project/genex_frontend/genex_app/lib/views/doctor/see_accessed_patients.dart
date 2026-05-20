@@ -4,9 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
 import 'patient_medical_history.dart';
+import '../shared/chat_screen.dart';
 //done
 class PatientProfile {
   final int? id;
+  final int? conversationId;
   final String name;
   final String email;
   final int? age;
@@ -16,6 +18,7 @@ class PatientProfile {
 
   PatientProfile({
     this.id,
+    this.conversationId,
     required this.name,
     required this.email,
     this.age,
@@ -27,6 +30,9 @@ class PatientProfile {
   factory PatientProfile.fromJson(Map<String, dynamic> json) {
     return PatientProfile(
       id: json['id'],
+        conversationId: json['conversation_id'] ??
+          json['conversationId'] ??
+          json['conversation']?['id'],
       name: json['name'] ?? 'Unknown',
       email: json['email'] ?? '',
       age: json['age'],
@@ -243,26 +249,22 @@ class _DoctorDashboardScreenState
           const EdgeInsets.fromLTRB(20, 20, 20, 10),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? const [
-                  Color(0xFF0F172A),
-                  Color(0xFF134E4A),
-                ]
-              : const [
-                  Color(0xFF0F766E),
-                  Color(0xFF14B8A6),
-                ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: const LinearGradient(
+  colors: [
+    Color(0xFF0F172A),
+    Color(0xFF1E3A8A),
+    Color(0xFF2563EB),
+  ],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+),
         borderRadius:
             BorderRadius.circular(24),
         boxShadow: [
           if (!isDark)
             BoxShadow(
               color:
-                  Colors.teal.withOpacity(0.18),
+                  theme.colorScheme.primary.withOpacity(0.18),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),

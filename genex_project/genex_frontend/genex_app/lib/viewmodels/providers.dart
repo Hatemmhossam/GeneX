@@ -11,7 +11,7 @@ import 'auth_state.dart';
 import 'user_search_viewmodel.dart';
 import 'user_search_state.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 
 final dashboardIndexProvider = StateProvider<int>((ref) => 0);
 

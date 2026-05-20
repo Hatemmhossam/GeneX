@@ -1,10 +1,15 @@
+// lib/views/patient/upload_screen.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
+
 import '../../core/secure_storage.dart';
-import '../../core/constants.dart';
+import '../../widgets/loading_button.dart';
+import '../../widgets/premium_card.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
 
 enum UploadType {
@@ -18,49 +23,30 @@ class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
 
   @override
-  State<UploadScreen> createState() =>
-      _UploadScreenState();
+  State<UploadScreen> createState() => _UploadScreenState();
 }
 
-class _UploadScreenState
-    extends State<UploadScreen> {
-  UploadType _selectedType =
-      UploadType.vcf;
-
+class _UploadScreenState extends State<UploadScreen> {
+  UploadType _selectedType = UploadType.vcf;
   String? selectedFileName;
+  PlatformFile? _pickedFile;
+  bool _isLoading = false;
 
-  static const String baseUrl =
-      'http://127.0.0.1:8000/api/';
+  static const String baseUrl = 'http://127.0.0.1:8000/api/';
 
-  final _formKey =
-      GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
 
-  final _ageController =
-      TextEditingController();
+  final _ageController = TextEditingController();
+  final _esrController = TextEditingController();
+  final _crpController = TextEditingController();
+  final _antiCcpController = TextEditingController();
+  final _rfController = TextEditingController();
+  final _c3Controller = TextEditingController();
+  final _c4Controller = TextEditingController();
 
-  String _selectedGender =
-      "Female";
+  String _selectedGender = "Female";
 
-  final _esrController =
-      TextEditingController();
-
-  final _crpController =
-      TextEditingController();
-
-  final _antiCcpController =
-      TextEditingController();
-
-  final _rfController =
-      TextEditingController();
-
-  final _c3Controller =
-      TextEditingController();
-
-  final _c4Controller =
-      TextEditingController();
-
-  final Map<String, bool>
-      _pnValues = {
+  final Map<String, bool> _pnValues = {
     "ANA": false,
     "Anti-Sm": false,
     "Anti-Ro": false,
@@ -81,221 +67,204 @@ class _UploadScreenState
     super.dispose();
   }
 
-  PlatformFile? _pickedFile;
-
   Future<void> pickFile() async {
-    final loc =
-        AppLocalizations.of(context)!;
+    final loc = AppLocalizations.of(context)!;
 
-    final result =
-        await FilePicker.platform
-            .pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: [
-        'vcf',
-        'txt',
-        'csv',
-      ],
+      allowedExtensions: ['vcf', 'txt', 'csv', 'jpg', 'jpeg', 'png', 'nii'],
       withData: true,
     );
 
-    if (result != null) {
-      setState(() {
-        selectedFileName =
-            result.files.single.name;
-      });
+    if (result == null) {
+      _showErrorSnackBar(loc.noFileSelected);
+      return;
+    }
 
-      if (_selectedType ==
-              UploadType
-                  .geneExpression ||
-          _selectedType ==
-              UploadType.mri) {
-        _uploadAndAnalyze(
-          result.files.single,
-        );
-      }
-    } else {
-      _showErrorSnackBar(
-        loc.noFileSelected,
-      );
+    setState(() {
+      _pickedFile = result.files.single;
+      selectedFileName = result.files.single.name;
+    });
+
+    if (_selectedType == UploadType.geneExpression ||
+        _selectedType == UploadType.mri) {
+      await _uploadAndAnalyze(result.files.single);
     }
   }
 
-  Future<void>
-      _uploadAndAnalyze(
-    PlatformFile file,
-  ) async {
-    final loc =
-        AppLocalizations.of(context)!;
+  Future<void> _uploadAndAnalyze(PlatformFile file) async {
+    final loc = AppLocalizations.of(context)!;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => const Center(
-        child:
-            CircularProgressIndicator(),
-      ),
-    );
+    setState(() => _isLoading = true);
 
     try {
-      var request =
-          http.MultipartRequest(
+      final request = http.MultipartRequest(
         'POST',
-        Uri.parse(
-          "${baseUrl}gene-upload/",
-        ),
+        Uri.parse("${baseUrl}gene-upload/"),
       );
 
-      final token =
-          await SecureStorage
-              .readToken();
+      final token = await SecureStorage.readToken();
 
       if (token != null) {
-        request.headers[
-                'Authorization'] =
-            'Bearer $token';
+        request.headers['Authorization'] = 'Bearer $token';
       }
 
       if (file.bytes != null) {
         request.files.add(
-          http.MultipartFile
-              .fromBytes(
+          http.MultipartFile.fromBytes(
             'file',
             file.bytes!,
             filename: file.name,
           ),
         );
-      } else if (file.path !=
-          null) {
+      } else if (file.path != null) {
         request.files.add(
-          await http.MultipartFile
-              .fromPath(
+          await http.MultipartFile.fromPath(
             'file',
             file.path!,
           ),
         );
       } else {
-        throw Exception(
-          loc.fileDataInaccessible,
-        );
+        throw Exception(loc.fileDataInaccessible);
       }
 
-      var streamedResponse =
-          await request.send();
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
-      var response =
-          await http.Response
-              .fromStream(
-        streamedResponse,
-      );
+      if (!mounted) return;
 
-      Navigator.pop(context);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
 
-      if (response.statusCode ==
-          200) {
-        final data = jsonDecode(
-          response.body,
-        );
-
-        _showResultDialogg(
-          (data['percentage']
-                  as num)
-              .toDouble(),
+        _showGeneResultDialog(
+          (data['percentage'] as num).toDouble(),
           data['label'],
         );
       } else {
-        String errorMessage =
-            loc.uploadFailed;
+        String errorMessage = loc.uploadFailed;
 
         try {
-          final errorData =
-              jsonDecode(
-            response.body,
-          );
-
-          errorMessage =
-              errorData['error'] ??
-                  errorMessage;
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['error'] ?? errorMessage;
         } catch (_) {
-          errorMessage =
-              response.body;
+          errorMessage = response.body;
         }
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(
-            content:
-                Text(errorMessage),
-          ),
-        );
+        _showErrorSnackBar(errorMessage);
       }
     } catch (e) {
-      Navigator.pop(context);
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            "${loc.uploadFailed}: $e",
-          ),
-        ),
-      );
+      if (!mounted) return;
+      _showErrorSnackBar("${loc.uploadFailed}: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showResultDialogg(
-    double percentage,
-    String label,
-  ) {
-    final loc =
-        AppLocalizations.of(context)!;
+  Future<void> sendTestsToBackend() async {
+    final loc = AppLocalizations.of(context)!;
+
+    if (!_formKey.currentState!.validate()) {
+      _showErrorSnackBar(loc.fixFormErrors);
+      return;
+    }
+
+    final token = await SecureStorage.readToken();
+
+    if (token == null || token.isEmpty) {
+      _showErrorSnackBar(loc.notLoggedIn);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final url = Uri.parse("${baseUrl}predict_xai/");
+
+    final requestBody = {
+      "Age": int.tryParse(_ageController.text) ?? 0,
+      "Gender": _selectedGender,
+      "ESR": double.tryParse(_esrController.text),
+      "CRP": double.tryParse(_crpController.text),
+      "RF": double.tryParse(_rfController.text),
+      "Anti_CCP": double.tryParse(_antiCcpController.text),
+      "C3": double.tryParse(_c3Controller.text),
+      "C4": double.tryParse(_c4Controller.text),
+      "ANA": _pnValues["ANA"],
+      "Anti_Sm": _pnValues["Anti-Sm"],
+      "Anti_Ro": _pnValues["Anti-Ro"],
+      "HLA_B27": _pnValues["HLA-B27"],
+      "Anti_La": _pnValues["Anti-La"],
+      "Anti_dsDNA": _pnValues["Anti-dsDNA"],
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        _showResultDialog(
+          prediction: data['disease_prediction'],
+          confidence: (data['confidence'] as num).toDouble(),
+          explanation: data['xai_explanation'],
+        );
+      } else {
+        String errorMessage = "${loc.serverError}: ${response.statusCode}";
+
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['error'] ?? errorMessage;
+        } catch (_) {}
+
+        _showErrorSnackBar(errorMessage);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorSnackBar("${loc.connectionFailed}: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showGeneResultDialog(double percentage, String label) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final color = percentage > 50 ? Colors.redAccent : Colors.green;
 
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-        title: Text(
-          loc.analysisResults,
-        ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(loc.analysisResults),
         content: Column(
-          mainAxisSize:
-              MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Icon(Icons.analytics_rounded, color: color, size: 46),
+            const SizedBox(height: 14),
+            Text(loc.rheumatoidProbability),
+            const SizedBox(height: 10),
             Text(
-              loc
-                  .rheumatoidProbability,
-            ),
-
-            const SizedBox(
-                height: 10),
-
-            Text(
-              "$percentage%",
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight:
-                    FontWeight.bold,
-                color: percentage >
-                        50
-                    ? Colors.red
-                    : Colors.green,
+              "${percentage.toStringAsFixed(1)}%",
+              style: theme.textTheme.displayMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: color,
               ),
             ),
-
-            Text(
-              "${loc.classification}: $label",
-            ),
+            const SizedBox(height: 8),
+            Text("${loc.classification}: $label"),
           ],
         ),
         actions: [
           TextButton(
-            onPressed:
-                () => Navigator.pop(
-              context,
-            ),
+            onPressed: () => Navigator.pop(context),
             child: Text(loc.ok),
           ),
         ],
@@ -303,485 +272,179 @@ class _UploadScreenState
     );
   }
 
-  Future<void>
-      sendTestsToBackend() async {
-    final loc =
-        AppLocalizations.of(context)!;
-
-    if (!_formKey.currentState!
-        .validate()) {
-      _showErrorSnackBar(
-        loc.fixFormErrors,
-      );
-
-      return;
-    }
-
-    final token =
-        await SecureStorage
-            .readToken();
-
-    if (token == null ||
-        token.isEmpty) {
-      _showErrorSnackBar(
-        loc.notLoggedIn,
-      );
-
-      return;
-    }
-
-    final url = Uri.parse(
-      "${baseUrl}predict_xai/",
-    );
-
-    final Map<String, dynamic>
-        requestBody = {
-      "Age": int.tryParse(
-            _ageController.text,
-          ) ??
-          0,
-      "Gender":
-          _selectedGender,
-      "ESR": double.tryParse(
-        _esrController.text,
-      ),
-      "CRP": double.tryParse(
-        _crpController.text,
-      ),
-      "RF": double.tryParse(
-        _rfController.text,
-      ),
-      "Anti_CCP":
-          double.tryParse(
-        _antiCcpController.text,
-      ),
-      "C3": double.tryParse(
-        _c3Controller.text,
-      ),
-      "C4": double.tryParse(
-        _c4Controller.text,
-      ),
-      "ANA":
-          _pnValues["ANA"],
-      "Anti_Sm":
-          _pnValues["Anti-Sm"],
-      "Anti_Ro":
-          _pnValues["Anti-Ro"],
-      "HLA_B27":
-          _pnValues["HLA-B27"],
-      "Anti_La":
-          _pnValues["Anti-La"],
-      "Anti_dsDNA":
-          _pnValues[
-              "Anti-dsDNA"],
-    };
-
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible:
-            false,
-        builder:
-            (ctx) => const Center(
-          child:
-              CircularProgressIndicator(),
-        ),
-      );
-
-      final response =
-          await http.post(
-        url,
-        headers: {
-          "Content-Type":
-              "application/json",
-          "Authorization":
-              "Bearer $token",
-        },
-        body: jsonEncode(
-          requestBody,
-        ),
-      );
-
-      if (mounted &&
-          Navigator.canPop(
-              context)) {
-        Navigator.of(context)
-            .pop();
-      }
-
-      if (response.statusCode ==
-          200) {
-        final data = jsonDecode(
-          response.body,
-        );
-
-        _showResultDialog(
-          prediction: data[
-              'disease_prediction'],
-          confidence:
-              (data['confidence']
-                      as num)
-                  .toDouble(),
-          explanation: data[
-              'xai_explanation'],
-        );
-      } else {
-        String errorMessage =
-            "${loc.serverError}: ${response.statusCode}";
-
-        try {
-          final errorData =
-              jsonDecode(
-            response.body,
-          );
-
-          errorMessage =
-              errorData['error'] ??
-                  errorMessage;
-        } catch (_) {}
-
-        _showErrorSnackBar(
-          errorMessage,
-        );
-      }
-    } catch (e) {
-      if (mounted &&
-          Navigator.canPop(
-              context)) {
-        Navigator.of(context)
-            .pop();
-      }
-
-      _showErrorSnackBar(
-        "${loc.connectionFailed}: $e",
-      );
-    }
-  }
-
   void _showResultDialog({
     required String prediction,
     required double confidence,
     required String explanation,
   }) {
-    final loc =
-        AppLocalizations.of(context)!;
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
 
     showDialog(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-        title: Text(
-          "${loc.result}: $prediction",
-        ),
-        content:
-            SingleChildScrollView(
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text("${loc.result}: $prediction"),
+        content: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
-            mainAxisSize:
-                MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 "${loc.confidence}: ${(confidence * 100).toStringAsFixed(1)}%",
-                style:
-                    const TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: theme.colorScheme.primary,
                 ),
               ),
-
-              const SizedBox(
-                  height: 10),
-
+              const SizedBox(height: 14),
               Text(
                 loc.aiExplanation,
-                style:
-                    const TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-
+              const SizedBox(height: 8),
               Text(explanation),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed:
-                () => Navigator.pop(
-              ctx,
-            ),
-            child: Text(
-              loc.close,
-            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(loc.close),
           ),
         ],
       ),
     );
   }
 
-  void _showErrorSnackBar(
-    String message,
-  ) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor:
-            Colors.red,
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  String _titleForType(
-    UploadType type,
-  ) {
-    final loc =
-        AppLocalizations.of(context)!;
+  String _titleForType(UploadType type) {
+    final loc = AppLocalizations.of(context)!;
 
     switch (type) {
       case UploadType.vcf:
         return loc.uploadVCFFile;
-
-      case UploadType
-            .geneExpression:
-        return loc
-            .uploadGeneExpressionFile;
-
+      case UploadType.geneExpression:
+        return loc.uploadGeneExpressionFile;
       case UploadType.tests:
-        return loc
-            .enterMedicalTests;
-
+        return loc.enterMedicalTests;
       case UploadType.mri:
         return loc.enterMRI;
     }
   }
 
+  String _instructionForType(UploadType type) {
+    final loc = AppLocalizations.of(context)!;
+
+    switch (type) {
+      case UploadType.vcf:
+        return loc.uploadVCFInstruction;
+      case UploadType.geneExpression:
+        return loc.uploadGeneExpressionInstruction;
+      case UploadType.tests:
+        return loc.enterPatientDetails;
+      case UploadType.mri:
+        return loc.uploadMRIInstruction;
+    }
+  }
+
+  IconData _iconForType(UploadType type) {
+    switch (type) {
+      case UploadType.vcf:
+        return Icons.difference_rounded;
+      case UploadType.geneExpression:
+        return Icons.biotech_rounded;
+      case UploadType.tests:
+        return Icons.science_rounded;
+      case UploadType.mri:
+        return Icons.image_search_rounded;
+    }
+  }
+
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final theme =
-        Theme.of(context);
-
-    final loc =
-        AppLocalizations.of(context)!;
-
-    final title =
-        _titleForType(
-      _selectedType,
-    );
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final title = _titleForType(_selectedType);
 
     return Scaffold(
-      backgroundColor:
-          theme.scaffoldBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(
-          loc.medicalAnalysisUpload,
-        ),
+        title: Text(loc.medicalAnalysisUpload),
       ),
-      body: Center(
-        child:
-            SingleChildScrollView(
-          padding:
-              const EdgeInsets.all(
-                  20),
-          child: Form(
-            key: _formKey,
-            child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(
-                maxWidth: 520,
-              ),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .stretch,
-                children: [
-                  DropdownButtonFormField<
-                      UploadType>(
-                    value:
-                        _selectedType,
-                    decoration:
-                        InputDecoration(
-                      labelText: loc
-                          .chooseUploadType,
-                      border:
-                          const OutlineInputBorder(),
-                    ),
-                    items: [
-                      DropdownMenuItem(
-                        value:
-                            UploadType
-                                .vcf,
-                        child: Text(
-                          loc.vcf,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _HeroUploadCard(
+                  title: loc.medicalAnalysisUpload,
+                  subtitle:
+                      'Upload medical files or enter lab tests to generate AI-powered health insights.',
+                ),
+                const SizedBox(height: 24),
+                _typeSelector(),
+                const SizedBox(height: 24),
+                PremiumCard(
+                  padding: const EdgeInsets.all(24),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 26,
+                              backgroundColor:
+                                  theme.colorScheme.primary.withOpacity(0.12),
+                              child: Icon(
+                                _iconForType(_selectedType),
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      DropdownMenuItem(
-                        value:
-                            UploadType
-                                .geneExpression,
-                        child: Text(
-                          loc
-                              .geneExpression,
+                        const SizedBox(height: 10),
+                        Text(
+                          _instructionForType(_selectedType),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color:
+                                theme.colorScheme.onSurface.withOpacity(0.65),
+                            height: 1.5,
+                          ),
                         ),
-                      ),
-                      DropdownMenuItem(
-                        value:
-                            UploadType
-                                .tests,
-                        child: Text(
-                          loc.tests,
-                        ),
-                      ),
-                      DropdownMenuItem(
-                        value:
-                            UploadType
-                                .mri,
-                        child: Text(
-                          loc.mri,
-                        ),
-                      ),
-                    ],
-                    onChanged: (
-                      val,
-                    ) {
-                      if (val == null)
-                        return;
-
-                      setState(() {
-                        _selectedType =
-                            val;
-
-                        selectedFileName =
-                            null;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(
-                      height: 18),
-
-                  Text(
-                    title,
-                    style:
-                        const TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight
-                              .bold,
+                        const SizedBox(height: 22),
+                        if (_selectedType == UploadType.tests)
+                          _testsForm()
+                        else
+                          _uploadBox(loc),
+                      ],
                     ),
                   ),
-
-                  const SizedBox(
-                      height: 12),
-
-                  if (_selectedType ==
-                      UploadType.vcf) ...[
-                    Text(
-                      loc
-                          .uploadVCFInstruction,
-                    ),
-
-                    const SizedBox(
-                        height: 12),
-
-                    ElevatedButton.icon(
-                      onPressed:
-                          pickFile,
-                      icon: const Icon(
-                        Icons
-                            .upload_file,
-                      ),
-                      label: Text(
-                        loc.uploadVCF,
-                      ),
-                    ),
-
-                    if (selectedFileName !=
-                        null) ...[
-                      const SizedBox(
-                          height: 12),
-
-                      Text(
-                        "${loc.uploaded}: $selectedFileName",
-                      ),
-                    ],
-                  ] else if (_selectedType ==
-                      UploadType
-                          .geneExpression) ...[
-                    Text(
-                      loc
-                          .uploadGeneExpressionInstruction,
-                    ),
-
-                    const SizedBox(
-                        height: 12),
-
-                    ElevatedButton.icon(
-                      onPressed:
-                          pickFile,
-                      icon: const Icon(
-                        Icons
-                            .upload_file,
-                      ),
-                      label: Text(
-                        loc
-                            .uploadGeneExpression,
-                      ),
-                    ),
-
-                    if (selectedFileName !=
-                        null) ...[
-                      const SizedBox(
-                          height: 12),
-
-                      Text(
-                        "${loc.uploaded}: $selectedFileName",
-                      ),
-                    ],
-                  ] else if (_selectedType ==
-                      UploadType.mri) ...[
-                    Text(
-                      loc
-                          .uploadMRIInstruction,
-                    ),
-
-                    const SizedBox(
-                        height: 12),
-
-                    ElevatedButton.icon(
-                      onPressed:
-                          pickFile,
-                      icon: const Icon(
-                        Icons
-                            .upload_file,
-                      ),
-                      label: Text(
-                        loc.uploadMRI,
-                      ),
-                    ),
-
-                    if (selectedFileName !=
-                        null) ...[
-                      const SizedBox(
-                          height: 12),
-
-                      Text(
-                        "${loc.uploaded}: $selectedFileName",
-                      ),
-                    ],
-                  ] else ...[
-                    Text(
-                      loc
-                          .enterPatientDetails,
-                    ),
-                  ],
-                ],
-              ),
+                ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.08),
+              ],
             ),
           ),
         ),
@@ -789,58 +452,265 @@ class _UploadScreenState
     );
   }
 
+  Widget _typeSelector() {
+    final loc = AppLocalizations.of(context)!;
+
+    final items = [
+      (UploadType.vcf, loc.vcf, Icons.difference_rounded),
+      (UploadType.geneExpression, loc.geneExpression, Icons.biotech_rounded),
+      (UploadType.tests, loc.tests, Icons.science_rounded),
+      (UploadType.mri, loc.mri, Icons.image_search_rounded),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 650;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: isCompact ? 2 : 4,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+            childAspectRatio: isCompact ? 1.5 : 1.25,
+          ),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            final selected = item.$1 == _selectedType;
+            final theme = Theme.of(context);
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: () {
+                setState(() {
+                  _selectedType = item.$1;
+                  selectedFileName = null;
+                  _pickedFile = null;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? theme.colorScheme.primary.withOpacity(0.12)
+                      : theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: selected
+                        ? theme.colorScheme.primary.withOpacity(0.45)
+                        : theme.dividerColor.withOpacity(0.12),
+                  ),
+                  boxShadow: [
+                    if (selected)
+                      BoxShadow(
+                        color: theme.colorScheme.primary.withOpacity(0.14),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      item.$3,
+                      color: selected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface.withOpacity(0.58),
+                      size: 28,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      item.$2,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: selected
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).animate().fadeIn(duration: 400.ms);
+  }
+
+  Widget _uploadBox(AppLocalizations loc) {
+    final theme = Theme.of(context);
+
+    String buttonText;
+
+    switch (_selectedType) {
+      case UploadType.vcf:
+        buttonText = loc.uploadVCF;
+        break;
+      case UploadType.geneExpression:
+        buttonText = loc.uploadGeneExpression;
+        break;
+      case UploadType.mri:
+        buttonText = loc.uploadMRI;
+        break;
+      case UploadType.tests:
+        buttonText = loc.upload;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.18),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.cloud_upload_rounded,
+            color: theme.colorScheme.primary,
+            size: 52,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            selectedFileName ?? 'Choose a file to start AI analysis',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 20),
+          LoadingButton(
+            loading: _isLoading,
+            icon: Icons.upload_file_rounded,
+            label: buttonText,
+            onPressed: pickFile,
+          ),
+          if (_pickedFile != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              "${loc.uploaded}: ${_pickedFile!.name}",
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _testsForm() {
+    final loc = AppLocalizations.of(context)!;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _numberField(loc.age, _ageController, isInt: true)),
+            const SizedBox(width: 14),
+            Expanded(child: _genderDropdown()),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(child: _numberField('ESR', _esrController)),
+            const SizedBox(width: 14),
+            Expanded(child: _numberField('CRP', _crpController)),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(child: _numberField('RF', _rfController)),
+            const SizedBox(width: 14),
+            Expanded(child: _numberField('Anti-CCP', _antiCcpController)),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(child: _numberField('C3', _c3Controller)),
+            const SizedBox(width: 14),
+            Expanded(child: _numberField('C4', _c4Controller)),
+          ],
+        ),
+        const SizedBox(height: 22),
+        ..._pnValues.keys.map(_positiveNegativeRow),
+        const SizedBox(height: 22),
+        LoadingButton(
+          loading: _isLoading,
+          icon: Icons.auto_awesome_rounded,
+          label: loc.result,
+          onPressed: sendTestsToBackend,
+        ),
+      ],
+    );
+  }
+
+  Widget _genderDropdown() {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
+    return DropdownButtonFormField<String>(
+      value: _selectedGender,
+      decoration: InputDecoration(
+        labelText: loc.gender,
+      ),
+      items: const [
+        DropdownMenuItem(value: "Female", child: Text("Female")),
+        DropdownMenuItem(value: "Male", child: Text("Male")),
+      ],
+      onChanged: (value) {
+        if (value == null) return;
+        setState(() => _selectedGender = value);
+      },
+      style: TextStyle(
+        color: theme.colorScheme.onSurface,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
   Widget _numberField(
     String label,
-    TextEditingController
-        controller, {
+    TextEditingController controller, {
     bool isInt = false,
   }) {
     return TextFormField(
       controller: controller,
       inputFormatters: [
-        FilteringTextInputFormatter
-            .allow(
-          RegExp(
-            isInt
-                ? r'^\d*'
-                : r'^\d*\.?\d*',
-          ),
+        FilteringTextInputFormatter.allow(
+          RegExp(isInt ? r'^\d*' : r'^\d*\.?\d*'),
         ),
       ],
-      keyboardType:
-          TextInputType
-              .numberWithOptions(
-        decimal: !isInt,
-      ),
-      decoration:
-          InputDecoration(
+      keyboardType: TextInputType.numberWithOptions(decimal: !isInt),
+      decoration: InputDecoration(
         labelText: label,
-        border:
-            const OutlineInputBorder(),
         isDense: true,
-        errorStyle:
-            const TextStyle(
-          fontSize: 11,
-        ),
       ),
       validator: (value) {
-        final loc =
-            AppLocalizations.of(
-                context)!;
+        final loc = AppLocalizations.of(context)!;
 
-        if (value == null ||
-            value
-                .trim()
-                .isEmpty) {
+        if (value == null || value.trim().isEmpty) {
           return "$label ${loc.isRequired}";
         }
 
-        final n =
-            num.tryParse(value);
+        final n = num.tryParse(value);
 
         if (n == null) {
-          return loc
-              .invalidNumber;
+          return loc.invalidNumber;
         }
 
         return null;
@@ -848,69 +718,128 @@ class _UploadScreenState
     );
   }
 
-  Widget _positiveNegativeRow(
-    String label,
-  ) {
-    final loc =
-        AppLocalizations.of(context)!;
+  Widget _positiveNegativeRow(String label) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final value = _pnValues[label] ?? false;
 
-    final value =
-        _pnValues[label] ??
-            false;
-
-    return Padding(
-      padding:
-          const EdgeInsets.only(
-              bottom: 10),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.12),
+        ),
+      ),
       child: Row(
         children: [
           Expanded(
             child: Text(
               label,
-              style:
-                  const TextStyle(
-                fontSize: 16,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
-
-          const SizedBox(
-              width: 10),
-
           SegmentedButton<bool>(
             segments: [
-              ButtonSegment(
-                value: true,
-                label:
-                    Text(loc.pos),
-              ),
-              ButtonSegment(
-                value: false,
-                label:
-                    Text(loc.neg),
-              ),
+              ButtonSegment(value: true, label: Text(loc.pos)),
+              ButtonSegment(value: false, label: Text(loc.neg)),
             ],
             selected: {value},
-            onSelectionChanged:
-                (set) => setState(
-              () => _pnValues[
-                      label] =
-                  set.first,
-            ),
-            showSelectedIcon:
-                false,
-            style:
-                const ButtonStyle(
-              tapTargetSize:
-                  MaterialTapTargetSize
-                      .shrinkWrap,
-              visualDensity:
-                  VisualDensity
-                      .compact,
+            onSelectionChanged: (set) {
+              setState(() => _pnValues[label] = set.first);
+            },
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _HeroUploadCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _HeroUploadCard({
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.secondary,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.28),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.22),
+              ),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: Colors.white,
+              size: 36,
+            ),
+          ),
+          const SizedBox(width: 22),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.82),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 450.ms).slideY(begin: -0.08);
   }
 }

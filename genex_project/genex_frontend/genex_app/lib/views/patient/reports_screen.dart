@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../viewmodels/providers.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
+import '../../widgets/premium_card.dart';
 //done
 
 class ReportsScreen extends ConsumerWidget {
@@ -53,10 +54,10 @@ class ReportsScreen extends ConsumerWidget {
           );
         },
         child: reportsAsync.when(
-          loading:
-              () => const Center(
-            child:
-                CircularProgressIndicator(),
+          loading: () => Center(
+            child: CircularProgressIndicator(
+              color: theme.colorScheme.primary,
+            ),
           ),
           error:
               (err, stack) => Center(
@@ -77,10 +78,7 @@ class ReportsScreen extends ConsumerWidget {
             }
 
             return ListView.builder(
-              padding:
-                  const EdgeInsets.symmetric(
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.all(16),
               itemCount:
                   reports.length,
               itemBuilder:
@@ -99,56 +97,45 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(
-    BuildContext context,
-  ) {
-    final theme = Theme.of(context);
+  Widget _buildEmptyState(BuildContext context) {
+  final theme = Theme.of(context);
+  final loc = AppLocalizations.of(context)!;
 
-    final loc =
-        AppLocalizations.of(context)!;
-
-    return Center(
-      child: Column(
-        mainAxisAlignment:
-            MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.folder_open,
-            size: 80,
-            color:
-                Colors.grey[300],
-          ),
-
-          const SizedBox(height: 16),
-
-          Text(
-            loc.noReportsFound,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight:
-                  FontWeight.w500,
-              color: theme
-                  .colorScheme
-                  .onSurface,
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: PremiumCard(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.folder_open_rounded,
+              size: 72,
+              color: theme.colorScheme.primary,
             ),
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            loc.uploadGeneFileMessage,
-            style: TextStyle(
-              color: theme
-                  .colorScheme
-                  .onSurface
-                  .withOpacity(0.6),
+            const SizedBox(height: 16),
+            Text(
+              loc.noReportsFound,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              loc.uploadGeneFileMessage,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.62),
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-}
+    ),
+  );
+}}
 
 class _ReportCard extends StatelessWidget {
   final dynamic report;
@@ -217,22 +204,11 @@ class _ReportCard extends StatelessWidget {
             ? topGenesRaw
             : {};
 
-    return Card(
-      color:
-          theme.colorScheme.surface,
-      margin:
-          const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 8,
-      ),
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(
-                12),
-      ),
-      elevation: 2,
-      child: Theme(
+    return Padding(
+  padding: const EdgeInsets.only(bottom: 14),
+  child: PremiumCard(
+    padding: EdgeInsets.zero,
+    child: Theme(
         data: Theme.of(context)
             .copyWith(
           dividerColor:
@@ -249,7 +225,7 @@ class _ReportCard extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.biotech,
+              Icons.analytics_rounded,
               color: statusColor,
             ),
           ),
@@ -525,10 +501,10 @@ class _ReportCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
-
+}
 class _MetricRow extends StatelessWidget {
   final String label;
 
