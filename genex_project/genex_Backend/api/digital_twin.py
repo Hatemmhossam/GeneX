@@ -1636,16 +1636,3 @@ def run_therapy_pipeline(
         "baseline_pathways": baseline_pathways,
     }
 
-# ============================================================
-# EXPLAINABLE AI (BIOLOGICAL + SHAP VERSION)
-# ============================================================
-
-import shap
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-print("\n" + "="*60)
-print("EXPLAINABLE AI (BIOLOGICAL + SHAP)")
-print("="*60)
-

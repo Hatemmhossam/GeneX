@@ -283,3 +283,77 @@ def run_twin_runtime_for_user(user, drugs):
         "pair_results": pair_results,
         "best_recommendation": best_recommendation,
     })
+
+def minmax(series):
+    s = pd.Series(series).astype(float)
+    if s.max() == s.min():
+        return s * 0
+    return (s - s.min()) / (s.max() - s.min())
+
+
+class FusionConfig:
+    w_rank = 0.35
+    w_twin = 0.35
+    w_path = 0.20
+    w_conf = 0.10
+    w_pair_bonus = 0.10
+    
+
+def fuse_results(single_results, pair_results, df_rank):
+    """
+    df_rank MUST come from your ranking model (IC50 / ML).
+    """
+
+    rank_map = df_rank.copy()
+    rank_map["drug_name"] = rank_map["drug_name"].str.lower()
+
+    rank_map["rank_score"] = minmax(rank_map["final_score"])
+    rank_map["conf_score"] = minmax(rank_map["score_conf"])
+
+    # -------------------------
+    # SINGLE DRUGS
+    # -------------------------
+    single_df = pd.DataFrame(single_results)
+
+    if not single_df.empty:
+        single_df["drug_name"] = single_df["drug_name"].str.lower()
+        single_df["twin_score"] = minmax(single_df["risk_reduction_pct"])
+    else:
+        single_df = pd.DataFrame(columns=["drug_name", "twin_score"])
+
+    # -------------------------
+    # PAIRS
+    # -------------------------
+    pair_df = pd.DataFrame(pair_results)
+
+    pair_expanded = []
+    if not pair_df.empty:
+        pair_df["pair_score"] = minmax(pair_df["risk_reduction_pct"])
+
+        for _, r in pair_df.iterrows():
+            a, b = r["drug_pair"]
+
+            pair_expanded.append({"drug_name": a.lower(), "pair_bonus": r["pair_score"]})
+            pair_expanded.append({"drug_name": b.lower(), "pair_bonus": r["pair_score"]})
+
+    pair_df = pd.DataFrame(pair_expanded)
+
+    # -------------------------
+    # MERGE EVERYTHING
+    # -------------------------
+    merged = rank_map.merge(single_df, on="drug_name", how="left")
+    merged = merged.merge(pair_df, on="drug_name", how="left")
+
+    merged["twin_score"] = merged["twin_score"].fillna(0)
+    merged["pair_bonus"] = merged["pair_bonus"].fillna(0)
+
+    cfg = FusionConfig()
+
+    merged["fusion_score"] = (
+        cfg.w_rank * merged["rank_score"] +
+        cfg.w_twin * merged["twin_score"] +
+        cfg.w_path * merged["pair_bonus"] +
+        cfg.w_conf * merged["conf_score"]
+    )
+
+    return merged.sort_values("fusion_score", ascending=False)
