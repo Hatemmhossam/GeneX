@@ -310,6 +310,53 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> runTwinSimulation({
+    required List<String> drugs,
+  }) async {
+    await _refreshAuthHeader();
+
+    try {
+      final response = await _dio
+          .post(
+            'twin/run/',
+            data: {
+              "drugs": drugs,
+            },
+            options: Options(contentType: Headers.jsonContentType),
+          )
+          .timeout(const Duration(seconds: 120));
+
+      if (response.data == null) {
+        throw Exception("Empty response from server.");
+      }
+
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+
+      if (response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+
+      throw Exception(
+        "Unexpected response format: ${response.data.runtimeType}",
+      );
+    } on DioException catch (e) {
+      debugPrint("=== DioException in runTwinSimulation ===");
+      debugPrint("Status code: ${e.response?.statusCode}");
+      debugPrint("Response data: ${e.response?.data}");
+      debugPrint("Request URI: ${e.requestOptions.uri}");
+
+      throw Exception(
+        e.response?.data?["error"]?.toString() ??
+            e.response?.data?["message"]?.toString() ??
+            "Twin simulation failed.",
+      );
+    } catch (e) {
+      throw Exception("Unexpected error: $e");
+    }
+  }
+
   // Future<void> saveTwinReport({
   //   required Map<String, dynamic> result,
   //   required String drug1,
