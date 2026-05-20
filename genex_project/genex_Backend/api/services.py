@@ -3,7 +3,7 @@ import joblib
 import numpy as np
 import requests
 import torch.nn as nn
-from .digital_twin import DeepDenoisingAE,DigitalTwin
+from .digital_twin import DeepDenoisingAE,DigitalTwin, PipelineConfig, PATHWAYS
 
 # -------------------------
 # CONFIG (temporary safe fix)
@@ -46,6 +46,7 @@ class MLService:
             healthy_tensor=healthy_tensor,
             drug_to_targets=self.drug_map,
             # pathways=self.pathways,
+            pathways=PATHWAYS,
             config=DummyConfig()
         )
 

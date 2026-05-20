@@ -32,6 +32,7 @@ urlpatterns = [
 
     path('run-twin/', run_twin),
 
+    path("twin/run/", views.run_twin, name="run-twin"),
 
     path('search-patients/', PatientSearchView.as_view(), name='search-patients'),
     path('send-request/', send_patient_request, name='send-request'),
@@ -47,14 +48,19 @@ urlpatterns = [
 
     path('doctor/dashboard-stats/', views.doctor_dashboard_stats),
     path('doctor/pending-patients/', views.doctor_pending_patients),
-
+    
     path('get-user-risk/<int:user_id>/', views.get_user_risk, name='get_user_risk'),
     path("evaluate/", evaluate),
     path('predict_xai/', ml_api.views.predict_xai, name='predict_xai'),
     path("save-report/",save_report),
     path('patient/assigned-doctors/', views.get_assigned_doctors, name='get_assigned_doctors'),
+
     path("mri-predict-gradcam/", mri_predict_gradcam, name="mri_predict_gradcam"),
 
+
+    path("twin/upload-gene-file/", views.upload_gene_file, name="twin-upload-gene-file"),
+    path("twin/run/", views.run_twin, name="run-twin"),
+    path("twin/history/", views.get_twin_history, name="twin-history"),
 ]
 
 
