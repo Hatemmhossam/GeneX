@@ -51,7 +51,6 @@ from .models import GeneExpressionFile
 from .models import User, Medicine, SymptomReport, DoctorPatient
 import shap
 from .models import GenePredictionReport
-
 #for test 
 from django.views.decorators.csrf import csrf_exempt
 
@@ -67,7 +66,7 @@ from .serializers import GeneReportSerializer
 #from api.twin_runner import run_full_twin_pipeline_for_user
 
 #from runner import run_full_twin_pipeline_for_user
-from api.twin_runner import run_twin_runtime_for_user
+from .twin_runner import run_twin_runtime_for_user
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
 
@@ -231,10 +230,15 @@ def run_twin(request):
         )
 
         return Response({
-            "message": "Full Digital Twin pipeline completed successfully",
-            "run_id": saved_run.id,
-            "result": result
-        }, status=status.HTTP_200_OK)
+        "message": "Full Digital Twin pipeline completed successfully",
+        "run_id": saved_run.id,
+
+        "baseline_risk": result.get("baseline_risk"),
+        "single_results": result.get("single_results", []),
+        "pair_results": result.get("pair_results", []),
+        "fusion_results": result.get("fusion_results", []),  # IMPORTANT
+        "best_recommendation": result.get("best_recommendation")
+    }, status=status.HTTP_200_OK)
 
     except Exception as e:
         return Response(
