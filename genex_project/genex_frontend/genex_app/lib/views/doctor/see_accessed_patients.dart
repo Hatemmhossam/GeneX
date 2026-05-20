@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:genex_app/l10n/app_localizations.dart';
 import 'patient_medical_history.dart';
-
+//done
 class PatientProfile {
   final int? id;
   final String name;
@@ -45,14 +45,18 @@ class DoctorDashboardScreen extends StatefulWidget {
   const DoctorDashboardScreen({super.key});
 
   @override
-  State<DoctorDashboardScreen> createState() => _DoctorDashboardScreenState();
+  State<DoctorDashboardScreen> createState() =>
+      _DoctorDashboardScreenState();
 }
 
-class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
+class _DoctorDashboardScreenState
+    extends State<DoctorDashboardScreen> {
   List<PatientProfile> patients = [];
   List<PatientProfile> filteredPatients = [];
   bool _isLoading = true;
-  final TextEditingController _searchController = TextEditingController();
+
+  final TextEditingController _searchController =
+      TextEditingController();
 
   @override
   void initState() {
@@ -73,7 +77,9 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-    final url = Uri.parse('http://127.0.0.1:8000/api/doctor/my-patients/');
+
+    final url =
+        Uri.parse('http://127.0.0.1:8000/api/doctor/my-patients/');
 
     try {
       final response = await http.get(
@@ -86,9 +92,9 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        final loadedPatients = data
-            .map((json) => PatientProfile.fromJson(json))
-            .toList();
+
+        final loadedPatients =
+            data.map((json) => PatientProfile.fromJson(json)).toList();
 
         setState(() {
           patients = loadedPatients;
@@ -106,35 +112,53 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
   }
 
   void _filterPatients() {
-    final query = _searchController.text.trim().toLowerCase();
+    final query =
+        _searchController.text.trim().toLowerCase();
 
     setState(() {
       filteredPatients = patients.where((patient) {
-        return patient.name.toLowerCase().contains(query) ||
-            patient.email.toLowerCase().contains(query);
+        return patient.name
+                .toLowerCase()
+                .contains(query) ||
+            patient.email
+                .toLowerCase()
+                .contains(query);
       }).toList();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isWide = MediaQuery.of(context).size.width > 900;
+    final bool isWide =
+        MediaQuery.of(context).size.width > 900;
+
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
-        title: const Text(
-          "My Patients",
-          style: TextStyle(fontWeight: FontWeight.bold),
+        backgroundColor:
+            theme.appBarTheme.backgroundColor,
+        foregroundColor:
+            theme.appBarTheme.foregroundColor,
+        centerTitle: true,
+        title: Text(
+          loc.myPatients,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+          ),
         ),
         actions: [
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: loc.refresh,
             onPressed: _fetchMyPatients,
-            icon: const Icon(Icons.refresh_rounded),
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: theme.colorScheme.primary,
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -144,82 +168,142 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
         child: _isLoading
             ? const _LoadingView()
             : patients.isEmpty
-            ? const _EmptyPatientsView()
-            : Column(
-                children: [
-                  _buildTopSection(isWide),
-                  Expanded(
-                    child: filteredPatients.isEmpty
-                        ? const _NoSearchResultsView()
-                        : Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                            child: GridView.builder(
-                              itemCount: filteredPatients.length,
-                              gridDelegate:
-                                  SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: isWide ? 420 : 500,
-                                    childAspectRatio: isWide ? 1.45 : 1.25,
-                                    crossAxisSpacing: 18,
-                                    mainAxisSpacing: 18,
+                ? const _EmptyPatientsView()
+                : Column(
+                    children: [
+                      _buildTopSection(
+                        isWide,
+                        loc,
+                      ),
+                      Expanded(
+                        child:
+                            filteredPatients.isEmpty
+                                ? const _NoSearchResultsView()
+                                : Padding(
+                                    padding:
+                                        const EdgeInsets.fromLTRB(
+                                      20,
+                                      8,
+                                      20,
+                                      20,
+                                    ),
+                                    child:
+                                        GridView.builder(
+                                      itemCount:
+                                          filteredPatients
+                                              .length,
+                                      gridDelegate:
+                                          SliverGridDelegateWithMaxCrossAxisExtent(
+                                        maxCrossAxisExtent:
+                                            isWide
+                                                ? 420
+                                                : 500,
+                                        childAspectRatio:
+                                            isWide
+                                                ? 1.15
+                                                : 1.05,
+                                        crossAxisSpacing:
+                                            18,
+                                        mainAxisSpacing:
+                                            18,
+                                      ),
+                                      itemBuilder:
+                                          (
+                                            context,
+                                            index,
+                                          ) {
+                                        final p =
+                                            filteredPatients[
+                                                index];
+
+                                        return _PatientCard(
+                                          patient: p,
+                                        );
+                                      },
+                                    ),
                                   ),
-                              itemBuilder: (context, index) {
-                                final p = filteredPatients[index];
-                                return _PatientCard(patient: p);
-                              },
-                            ),
-                          ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
       ),
     );
   }
 
-  Widget _buildTopSection(bool isWide) {
+  Widget _buildTopSection(
+    bool isWide,
+    AppLocalizations loc,
+  ) {
+    final theme = Theme.of(context);
+
+    final isDark =
+        theme.brightness == Brightness.dark;
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+      margin:
+          const EdgeInsets.fromLTRB(20, 20, 20, 10),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [
+                  Color(0xFF0F172A),
+                  Color(0xFF134E4A),
+                ]
+              : const [
+                  Color(0xFF0F766E),
+                  Color(0xFF14B8A6),
+                ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius:
+            BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(
-            color: Colors.teal.withOpacity(0.18),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
+          if (!isDark)
+            BoxShadow(
+              color:
+                  Colors.teal.withOpacity(0.18),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
         ],
       ),
       child: isWide
           ? Row(
               children: [
-                Expanded(child: _buildHeaderText()),
+                Expanded(
+                  child:
+                      _buildHeaderText(loc),
+                ),
                 const SizedBox(width: 20),
-                Expanded(child: _buildSearchBar()),
+                Expanded(
+                  child:
+                      _buildSearchBar(loc),
+                ),
               ],
             )
           : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
-                _buildHeaderText(),
+                _buildHeaderText(loc),
                 const SizedBox(height: 16),
-                _buildSearchBar(),
+                _buildSearchBar(loc),
               ],
             ),
     );
   }
 
-  Widget _buildHeaderText() {
+  Widget _buildHeaderText(
+    AppLocalizations loc,
+  ) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Doctor Dashboard",
-          style: TextStyle(
+        Text(
+          loc.doctorDashboard,
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -227,22 +311,29 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          "Manage your accepted patients and open their medical records quickly.",
+          loc.doctorDashboardSubtitle,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.92),
+            color:
+                Colors.white.withOpacity(0.92),
             fontSize: 14,
             height: 1.4,
           ),
         ),
         const SizedBox(height: 14),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 8,
+          ),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.14),
-            borderRadius: BorderRadius.circular(999),
+            color:
+                Colors.white.withOpacity(0.14),
+            borderRadius:
+                BorderRadius.circular(999),
           ),
           child: Text(
-            "${patients.length} patient${patients.length == 1 ? '' : 's'}",
+            "${patients.length} ${loc.patients}",
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
@@ -253,34 +344,67 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(
+    AppLocalizations loc,
+  ) {
+    final theme = Theme.of(context);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color:
+            theme.inputDecorationTheme.fillColor,
+        borderRadius:
+            BorderRadius.circular(18),
       ),
       child: TextField(
         controller: _searchController,
+        textDirection:
+            Directionality.of(context),
+        style: TextStyle(
+          color: theme.colorScheme.onSurface,
+        ),
         decoration: InputDecoration(
-          hintText: "Search by patient name or email",
-          prefixIcon: const Icon(Icons.search_rounded),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  onPressed: () {
-                    _searchController.clear();
-                  },
-                  icon: const Icon(Icons.close_rounded),
-                )
-              : null,
+          hintText: loc.searchByPatient,
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurface
+                .withOpacity(0.55),
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color:
+                theme.colorScheme.primary,
+          ),
+          suffixIcon:
+              _searchController
+                      .text
+                      .isNotEmpty
+                  ? IconButton(
+                      onPressed: () {
+                        _searchController
+                            .clear();
+                      },
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: theme
+                            .colorScheme
+                            .primary,
+                      ),
+                    )
+                  : null,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
+            borderRadius:
+                BorderRadius.circular(18),
+            borderSide:
+                BorderSide.none,
           ),
           filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
+          fillColor: theme
+              .inputDecorationTheme
+              .fillColor,
+          contentPadding:
+              const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 14,
+            vertical: 10,
           ),
         ),
       ),
@@ -291,30 +415,47 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
 class _PatientCard extends StatelessWidget {
   final PatientProfile patient;
 
-  const _PatientCard({required this.patient});
+  const _PatientCard({
+    required this.patient,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final String firstLetter = patient.name.isNotEmpty
-        ? patient.name[0].toUpperCase()
-        : '?';
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    final isDark =
+        theme.brightness == Brightness.dark;
+
+    final String firstLetter =
+        patient.name.isNotEmpty
+            ? patient.name[0].toUpperCase()
+            : '?';
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: Colors.white,
+        borderRadius:
+            BorderRadius.circular(24),
+        color: theme.colorScheme.surface,
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
+          if (!isDark)
+            BoxShadow(
+              color:
+                  Colors.black.withOpacity(0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
         ],
+        border: Border.all(
+          color: theme.dividerColor
+              .withOpacity(0.15),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             Row(
               children: [
@@ -322,17 +463,25 @@ class _PatientCard extends StatelessWidget {
                   width: 54,
                   height: 54,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF06B6D4), Color(0xFF2563EB)],
+                    gradient:
+                        const LinearGradient(
+                      colors: [
+                        Color(0xFF06B6D4),
+                        Color(0xFF2563EB),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius:
+                        BorderRadius.circular(
+                            18),
                   ),
                   child: Center(
                     child: Text(
                       firstLetter,
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                         fontSize: 22,
                       ),
                     ),
@@ -341,26 +490,44 @@ class _PatientCard extends StatelessWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
                     children: [
                       Text(
                         patient.name,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
+                        overflow:
+                            TextOverflow
+                                .ellipsis,
+                        style: theme
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(
+                          fontWeight:
+                              FontWeight.bold,
+                          color: theme
+                              .colorScheme
+                              .onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(
+                          height: 4),
                       Text(
                         patient.email,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 13,
+                        overflow:
+                            TextOverflow
+                                .ellipsis,
+                        style: theme
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                          color: theme
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(
+                                  0.65),
                         ),
                       ),
                     ],
@@ -374,63 +541,103 @@ class _PatientCard extends StatelessWidget {
               runSpacing: 10,
               children: [
                 _InfoChip(
-                  icon: Icons.cake_outlined,
-                  label: "Age",
-                  value: patient.age?.toString() ?? '-',
+                  icon:
+                      Icons.cake_outlined,
+                  label: loc.age,
+                  value:
+                      patient.age
+                          ?.toString() ??
+                      '-',
                 ),
                 _InfoChip(
-                  icon: Icons.wc_outlined,
-                  label: "Gender",
-                  value: patient.gender ?? '-',
+                  icon:
+                      Icons.wc_outlined,
+                  label: loc.gender,
+                  value:
+                      patient.gender ??
+                      '-',
                 ),
                 _InfoChip(
-                  icon: Icons.monitor_weight_outlined,
-                  label: "Weight",
-                  value: patient.weight != null
-                      ? "${patient.weight!.toStringAsFixed(1)} kg"
-                      : '-',
+                  icon: Icons
+                      .monitor_weight_outlined,
+                  label: loc.weight,
+                  value:
+                      patient.weight !=
+                              null
+                          ? "${patient.weight!.toStringAsFixed(1)} kg"
+                          : '-',
                 ),
                 _InfoChip(
-                  icon: Icons.height_outlined,
-                  label: "Height",
-                  value: patient.height != null
-                      ? "${patient.height!.toStringAsFixed(1)} cm"
-                      : '-',
+                  icon:
+                      Icons.height_outlined,
+                  label: loc.height,
+                  value:
+                      patient.height !=
+                              null
+                          ? "${patient.height!.toStringAsFixed(1)} cm"
+                          : '-',
                 ),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child:
+                  ElevatedButton.icon(
                 onPressed: () {
-                  if (patient.id != null) {
+                  if (patient.id !=
+                      null) {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => PatientMedicalHistoryScreen(
-                          patientId: patient.id!,
-                          patientName: patient.name,
+                        builder:
+                            (context) =>
+                                PatientMedicalHistoryScreen(
+                          patientId:
+                              patient.id!,
+                          patientName:
+                              patient.name,
                         ),
                       ),
                     );
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Error: Patient ID is missing"),
+                    ScaffoldMessenger.of(
+                            context)
+                        .showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          loc.patientIdMissing,
+                        ),
                       ),
                     );
                   }
                 },
-                icon: const Icon(Icons.folder_open_rounded),
-                label: const Text("View Medical Records"),
-                style: ElevatedButton.styleFrom(
+                icon: const Icon(
+                  Icons
+                      .folder_open_rounded,
+                ),
+                label: Text(
+                  loc.viewMedicalRecords,
+                ),
+                style:
+                    ElevatedButton.styleFrom(
                   elevation: 0,
-                  backgroundColor: const Color(0xFF0F766E),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  backgroundColor: theme
+                      .colorScheme
+                      .primary,
+                  foregroundColor:
+                      Colors.white,
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    vertical: 14,
+                  ),
+                  shape:
+                      RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                                16),
                   ),
                 ),
               ),
@@ -455,35 +662,61 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color:
+            theme.scaffoldBackgroundColor,
+        borderRadius:
+            BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.dividerColor
+              .withOpacity(0.2),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF0F766E)),
+          Icon(
+            icon,
+            size: 16,
+            color:
+                theme.colorScheme.primary,
+          ),
           const SizedBox(width: 8),
           RichText(
             text: TextSpan(
-              style: const TextStyle(fontFamily: 'Roboto'),
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                color:
+                    theme.colorScheme.onSurface,
+              ),
               children: [
                 TextSpan(
                   text: "$label: ",
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
+                  style: TextStyle(
+                    color: theme
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.6),
                     fontSize: 12,
                   ),
                 ),
                 TextSpan(
                   text: value,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
+                  style: TextStyle(
+                    color: theme
+                        .colorScheme
+                        .onSurface,
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    fontWeight:
+                        FontWeight.w700,
                   ),
                 ),
               ],
@@ -500,16 +733,27 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
     return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: const [
-        SizedBox(height: 120),
-        Center(child: CircularProgressIndicator()),
-        SizedBox(height: 16),
+      physics:
+          const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 120),
+        const Center(
+          child:
+              CircularProgressIndicator(),
+        ),
+        const SizedBox(height: 16),
         Center(
           child: Text(
-            "Loading patients...",
-            style: TextStyle(color: Color(0xFF64748B)),
+            loc.loadingPatients,
+            style: TextStyle(
+              color: theme
+                  .colorScheme.onSurface
+                  .withOpacity(0.65),
+            ),
           ),
         ),
       ],
@@ -517,33 +761,54 @@ class _LoadingView extends StatelessWidget {
   }
 }
 
-class _EmptyPatientsView extends StatelessWidget {
+class _EmptyPatientsView
+    extends StatelessWidget {
   const _EmptyPatientsView();
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
     return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
+      physics:
+          const AlwaysScrollableScrollPhysics(),
       children: [
         const SizedBox(height: 100),
-        Icon(Icons.groups_rounded, size: 90, color: Colors.grey.shade300),
+        Icon(
+          Icons.groups_rounded,
+          size: 90,
+          color: theme
+              .colorScheme.onSurface
+              .withOpacity(0.25),
+        ),
         const SizedBox(height: 18),
-        const Center(
+        Center(
           child: Text(
-            "No accepted patients yet",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+            loc.noAcceptedPatients,
+            style: theme
+                .textTheme.titleLarge
+                ?.copyWith(
+              fontWeight:
+                  FontWeight.bold,
+              color: theme
+                  .colorScheme.onSurface,
             ),
           ),
         ),
         const SizedBox(height: 8),
-        const Center(
+        Center(
           child: Text(
-            "Once patients are assigned and accepted,\nyou’ll see them here.",
+            loc.patientsWillAppearHere,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF64748B), height: 1.5),
+            style: theme
+                .textTheme.bodyMedium
+                ?.copyWith(
+              color: theme
+                  .colorScheme.onSurface
+                  .withOpacity(0.65),
+              height: 1.5,
+            ),
           ),
         ),
       ],
@@ -551,17 +816,24 @@ class _EmptyPatientsView extends StatelessWidget {
   }
 }
 
-class _NoSearchResultsView extends StatelessWidget {
+class _NoSearchResultsView
+    extends StatelessWidget {
   const _NoSearchResultsView();
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return Center(
       child: Text(
-        "No patients match your search.",
-        style: TextStyle(
+        loc.noPatientsMatchSearch,
+        style: theme.textTheme.bodyMedium
+            ?.copyWith(
           fontSize: 16,
-          color: Color(0xFF64748B),
+          color: theme
+              .colorScheme.onSurface
+              .withOpacity(0.65),
           fontWeight: FontWeight.w500,
         ),
       ),

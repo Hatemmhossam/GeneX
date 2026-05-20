@@ -1,45 +1,91 @@
 import 'package:flutter/material.dart';
-
+import 'package:genex_app/l10n/app_localizations.dart';
+//done
 class AboutSystemScreen extends StatelessWidget {
   const AboutSystemScreen({super.key});
 
   Widget _sectionCard({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String content,
     Color? color,
   }) {
+    final theme = Theme.of(context);
+
+    final isDark =
+        theme.brightness ==
+            Brightness.dark;
+
+    final cardColor =
+        color ?? theme.colorScheme.primary;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      margin:
+          const EdgeInsets.only(bottom: 16),
+      padding:
+          const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        color:
+            theme.colorScheme.surface,
+        borderRadius:
+            BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.dividerColor
+              .withOpacity(0.15),
+        ),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black
+                  .withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor: (color ?? Colors.teal).withOpacity(0.1),
-            child: Icon(icon, color: color ?? Colors.teal),
+            backgroundColor:
+                cardColor.withOpacity(0.12),
+            child: Icon(
+              icon,
+              color: cardColor,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                    color: theme
+                        .colorScheme
+                        .onSurface,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text(content, style: const TextStyle(fontSize: 15, height: 1.4)),
+                Text(
+                  content,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.4,
+                    color: theme
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.72),
+                  ),
+                ),
               ],
             ),
           ),
@@ -48,36 +94,73 @@ class AboutSystemScreen extends StatelessWidget {
     );
   }
 
-  Widget _disclaimerCard() {
+  Widget _disclaimerCard(
+    BuildContext context,
+  ) {
+    final theme = Theme.of(context);
+
+    final isDark =
+        theme.brightness ==
+            Brightness.dark;
+
+    final loc =
+        AppLocalizations.of(context)!;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
+      margin:
+          const EdgeInsets.only(bottom: 20),
+      padding:
+          const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.red.shade200),
+        color: isDark
+            ? Colors.red.withOpacity(0.12)
+            : Colors.red.shade50,
+        borderRadius:
+            BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? Colors.red
+                  .withOpacity(0.35)
+              : Colors.red.shade200,
+        ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 32),
+          Icon(
+            Icons.warning_amber_rounded,
+            color: isDark
+                ? Colors.red.shade300
+                : Colors.red,
+            size: 32,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
                 Text(
-                  "Important Medical Disclaimer",
+                  loc.importantMedicalDisclaimer,
                   style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                    color: isDark
+                        ? Colors.red.shade300
+                        : Colors.red,
+                  ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
-                  "This application is NOT a replacement for professional medical care. "
-                  "It helps patients organize their medical history, track medications, "
-                  "and communicate with their doctors, but it cannot diagnose or treat any condition. "
-                  "Always consult a qualified physician before making medical decisions.",
-                  style: TextStyle(color: Colors.red, height: 1.4),
+                  loc.medicalDisclaimerContent,
+                  style: TextStyle(
+                    color: isDark
+                        ? Colors.red.shade200
+                        : Colors.red,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -89,54 +172,72 @@ class AboutSystemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final loc =
+        AppLocalizations.of(context)!;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor:
+          theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text("About the System"),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        title: Text(
+          loc.aboutTheSystem,
+          style: TextStyle(
+            color:
+                theme.colorScheme.onSurface,
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+        backgroundColor:
+            theme.appBarTheme.backgroundColor,
+        foregroundColor:
+            theme.colorScheme.onSurface,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding:
+            const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             _sectionCard(
+              context: context,
               icon: Icons.psychology,
-              title: "Purpose",
+              title: loc.purpose,
               content:
-                  "This system is designed to help patients with the diagnosis process and provide quick connection with their doctors. "
-                  "Patients can access the descriptions and notes entered by their doctors.",
+                  loc.purposeContent,
               color: Colors.teal,
             ),
             _sectionCard(
+              context: context,
               icon: Icons.star,
-              title: "Main Features",
+              title: loc.mainFeatures,
               content:
-                  "• Easy data entry for patients\n"
-                  "• Doctors can access patient data and enter prescriptions\n"
-                  "• Patients can track all taken medications\n"
-                  "• Import medical history to organize all information about medications and treatments",
+                  loc.mainFeaturesContent,
               color: Colors.blue,
             ),
             _sectionCard(
+              context: context,
               icon: Icons.settings,
-              title: "How the System Works",
-              content:
-                  "The system works by importing patient files, allowing doctors to view patient reports and select the best medications. "
-                  "It is designed to provide guidance with high accuracy in medication suggestions.",
+              title:
+                  loc.howSystemWorks,
+              content: loc
+                  .howSystemWorksContent,
               color: Colors.deepPurple,
             ),
             _sectionCard(
-              icon: Icons.info_outline,
-              title: "Limitations",
+              context: context,
+              icon:
+                  Icons.info_outline,
+              title: loc.limitations,
               content:
-                  "This system provides assistance and organization for medical information, but it cannot replace professional medical advice. "
-                  "The recommendations are supportive and should always be verified by a qualified doctor.",
+                  loc.limitationsContent,
               color: Colors.orange,
             ),
-            _disclaimerCard(),
+            _disclaimerCard(context),
           ],
         ),
       ),

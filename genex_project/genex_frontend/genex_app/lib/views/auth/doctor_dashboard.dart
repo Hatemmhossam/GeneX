@@ -1,13 +1,16 @@
 // lib/views/doctor/doctor_dashboard.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
+
 import '../../viewmodels/providers.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../doctor/user_search_view.dart';
 import '../doctor/see_accessed_patients.dart';
 import '../doctor/pending_patients_view.dart';
-import '../doctor/twin_preview_screen.dart'; // adjust path if needed
+import '../doctor/twin_preview_screen.dart';
 
 class DoctorDashboard extends ConsumerStatefulWidget {
   const DoctorDashboard({super.key});
@@ -21,8 +24,6 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
   bool _isAuthorized = false;
   bool _isStatsLoading = true;
 
-  static const Color mainBlue = Color(0xFF1A5699);
-
   int totalPatients = 0;
   int pendingPatients = 0;
 
@@ -34,6 +35,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
 
   Future<void> _initializeDashboard() async {
     await _checkAccess();
+
     if (_isAuthorized) {
       await _fetchDashboardStats();
     }
@@ -41,6 +43,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
 
   Future<void> _checkAccess() async {
     final prefs = await SharedPreferences.getInstance();
+
     final token = prefs.getString('token');
     final role = prefs.getString('role');
 
@@ -81,6 +84,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
       }
     } catch (e) {
       debugPrint('❌ Error fetching dashboard stats: $e');
+
       if (mounted) {
         setState(() {
           _isStatsLoading = false;
@@ -93,6 +97,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
     setState(() {
       _isStatsLoading = true;
     });
+
     await _fetchDashboardStats();
   }
 
@@ -100,6 +105,8 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
     BuildContext context,
     AuthViewModel authVM,
   ) async {
+    final loc = AppLocalizations.of(context)!;
+
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
@@ -107,13 +114,11 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          title: const Text('Confirm Logout'),
-          content: const Text(
-            'Are you sure you want to log out of the GeneX portal?',
-          ),
+          title: Text(loc.confirmLogout),
+          content: Text(loc.logoutMessage),
           actions: [
             TextButton(
-              child: const Text('Cancel'),
+              child: Text(loc.cancel),
               onPressed: () => Navigator.of(context).pop(),
             ),
             ElevatedButton(
@@ -123,15 +128,18 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
               ),
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
+
                 await prefs.clear();
                 await authVM.logout();
+
                 if (context.mounted) {
-                  Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil('/signin', (r) => false);
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    '/signin',
+                    (r) => false,
+                  );
                 }
               },
-              child: const Text('Logout'),
+              child: Text(loc.logout),
             ),
           ],
         );
@@ -141,16 +149,26 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
-    if (!_isAuthorized) return const SizedBox.shrink();
+    if (!_isAuthorized) {
+      return const SizedBox.shrink();
+    }
 
     final authVM = ref.read(authViewModelProvider.notifier);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refreshDashboard,
@@ -160,22 +178,32 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Doctor Dashboard',
-                      style: TextStyle(
-                        fontSize: 28,
+                    Text(
+                      loc.doctorDashboard,
+                      style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.refresh, color: mainBlue),
+                          icon: Icon(
+                            Icons.settings,
+                            color: theme.colorScheme.primary,
+                          ),
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/settings');
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.refresh,
+                            color: theme.colorScheme.primary,
+                          ),
                           onPressed: _refreshDashboard,
                         ),
                         IconButton(
@@ -183,29 +211,31 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                             Icons.logout,
                             color: Colors.redAccent,
                           ),
-                          onPressed: () =>
-                              _showLogoutConfirmation(context, authVM),
+                          onPressed: () => _showLogoutConfirmation(
+                            context,
+                            authVM,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 32),
 
-                // Summary Stats Section
                 Row(
                   children: [
                     _buildStatCard(
-                      title: 'Assigned Patients',
+                      context: context,
+                      title: loc.assignedPatients,
                       value: _isStatsLoading ? '...' : totalPatients.toString(),
                       icon: Icons.people_alt_outlined,
                     ),
                     const SizedBox(width: 16),
                     _buildStatCard(
-                      title: 'Pending Patients',
-                      value: _isStatsLoading
-                          ? '...'
-                          : pendingPatients.toString(),
+                      context: context,
+                      title: loc.pendingPatients,
+                      value: _isStatsLoading ? '...' : pendingPatients.toString(),
                       icon: Icons.hourglass_top_outlined,
                       onTap: () {
                         Navigator.push(
@@ -218,30 +248,39 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 32),
 
-                // Navigation Tiles
-                const Text(
-                  'Quick Actions',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-
-                _buildDashboardTile(
-                  icon: Icons.people_outline,
-                  title: 'Manage Patients',
-                  subtitle: 'View full patient directory',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const UserSearchView()),
+                Text(
+                  loc.quickActions,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
+
                 const SizedBox(height: 16),
 
                 _buildDashboardTile(
+                  context: context,
+                  icon: Icons.people_outline,
+                  title: loc.managePatients,
+                  subtitle: loc.viewPatientDirectory,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserSearchView(),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                _buildDashboardTile(
+                  context: context,
                   icon: Icons.medical_services_outlined,
-                  title: 'My Patients',
-                  subtitle: 'View patient medical logs',
+                  title: loc.myPatients,
+                  subtitle: loc.viewMedicalLogs,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -249,12 +288,14 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 16),
 
                 _buildDashboardTile(
+                  context: context,
                   icon: Icons.science_outlined,
-                  title: 'Twin Simulation Review',
-                  subtitle: 'Review patient simulations',
+                  title: loc.twinSimulationReview,
+                  subtitle: loc.reviewPatientSimulations,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -273,34 +314,52 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
   }
 
   Widget _buildStatCard({
+    required BuildContext context,
     required String title,
     required String value,
     required IconData icon,
     VoidCallback? onTap,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final card = Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.08)
+              : Colors.black.withOpacity(0.04),
+        ),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: mainBlue),
+          Icon(icon, color: theme.colorScheme.primary),
           const SizedBox(height: 12),
           Text(
             value,
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
-          Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          Text(
+            title,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.65),
+            ),
+          ),
         ],
       ),
     );
@@ -317,30 +376,44 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
   }
 
   Widget _buildDashboardTile({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.08)
+                : Colors.black.withOpacity(0.04),
+          ),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
+            if (!isDark)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
           ],
         ),
         child: Row(
           children: [
-            Icon(icon, color: mainBlue, size: 28),
+            Icon(
+              icon,
+              color: theme.colorScheme.primary,
+              size: 28,
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -348,20 +421,26 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.65),
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: theme.colorScheme.onSurface.withOpacity(0.45),
+            ),
           ],
         ),
       ),

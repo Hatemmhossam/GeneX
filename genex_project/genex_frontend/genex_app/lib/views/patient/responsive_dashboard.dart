@@ -11,16 +11,21 @@ import 'symptoms_screen.dart';
 import 'about_system_screen.dart';
 import 'dna_model_visualization.dart';
 import 'my_doctors_screen.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
+//done 
 
 class ResponsiveDashboard extends ConsumerStatefulWidget {
   const ResponsiveDashboard({super.key});
 
   @override
-  ConsumerState<ResponsiveDashboard> createState() =>
-      _ResponsiveDashboardState();
+  ConsumerState<ResponsiveDashboard>
+      createState() =>
+          _ResponsiveDashboardState();
 }
 
-class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
+class _ResponsiveDashboardState
+    extends ConsumerState<
+        ResponsiveDashboard> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
@@ -36,108 +41,256 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
     const AboutSystemScreen(),
   ];
 
-  void _handleLogout() async {
-    bool? confirm = await showDialog(
+  Future<void> _handleLogout() async {
+    final theme = Theme.of(context);
+
+    final loc =
+        AppLocalizations.of(context)!;
+
+    bool? confirm =
+        await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Logout'),
-        content: const Text(
-          'Are you sure you want to log out of the GeneX portal?',
+      builder:
+          (context) => AlertDialog(
+        backgroundColor:
+            theme.colorScheme.surface,
+        title: Text(
+          loc.confirmLogout,
+          style: TextStyle(
+            color: theme
+                .colorScheme
+                .onSurface,
+          ),
+        ),
+        content: Text(
+          loc.logoutConfirmationMessage,
+          style: TextStyle(
+            color: theme
+                .colorScheme
+                .onSurface
+                .withOpacity(0.75),
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            onPressed:
+                () => Navigator.pop(
+              context,
+            ),
+            child: Text(
+              loc.cancel,
+            ),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            style:
+                ElevatedButton.styleFrom(
+              backgroundColor:
+                  Colors.red,
+              foregroundColor:
+                  Colors.white,
+            ),
+            onPressed:
+                () => Navigator.pop(
+              context,
+              true,
+            ),
+            child: Text(
+              loc.logout,
+            ),
           ),
         ],
       ),
     );
 
     if (confirm == true) {
-      await ref.read(authViewModelProvider.notifier).logout();
+      await ref
+          .read(
+            authViewModelProvider
+                .notifier,
+          )
+          .logout();
+
       if (mounted) {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/signin', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil(
+          '/signin',
+          (route) => false,
+        );
       }
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    double width = MediaQuery.of(context).size.width;
-    bool isDesktop = width > 900;
+  Widget build(
+    BuildContext context,
+  ) {
+    final theme =
+        Theme.of(context);
+
+    final loc =
+        AppLocalizations.of(context)!;
+
+    double width =
+        MediaQuery.of(context)
+            .size
+            .width;
+
+    bool isDesktop =
+        width > 900;
 
     return Scaffold(
+      backgroundColor:
+          theme.scaffoldBackgroundColor,
       body: Row(
         children: [
           if (isDesktop)
             NavigationRail(
-              extended: width > 1200,
-              backgroundColor: const Color(0xFFF8FAFC),
-              selectedIconTheme: const IconThemeData(color: Colors.teal),
-              unselectedIconTheme: const IconThemeData(color: Colors.grey),
-              destinations: const [
+              extended:
+                  width > 1200,
+              backgroundColor:
+                  theme.colorScheme
+                      .surface,
+              selectedIconTheme:
+                  IconThemeData(
+                color: theme
+                    .colorScheme
+                    .primary,
+              ),
+              unselectedIconTheme:
+                  IconThemeData(
+                color: theme
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(
+                        0.55),
+              ),
+              selectedLabelTextStyle:
+                  TextStyle(
+                color: theme
+                    .colorScheme
+                    .primary,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+              unselectedLabelTextStyle:
+                  TextStyle(
+                color: theme
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(
+                        0.65),
+              ),
+              destinations: [
                 NavigationRailDestination(
-                  icon: Icon(Icons.dashboard),
-                  label: Text('Overview'),
+                  icon: const Icon(
+                    Icons.dashboard,
+                  ),
+                  label: Text(
+                    loc.overview,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.person),
-                  label: Text('Profile'),
+                  icon: const Icon(
+                    Icons.person,
+                  ),
+                  label: Text(
+                    loc.profile,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.medication),
-                  label: Text('History'),
+                  icon: const Icon(
+                    Icons.medication,
+                  ),
+                  label: Text(
+                    loc.history,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.sick),
-                  label: Text('Symptoms'),
+                  icon: const Icon(
+                    Icons.sick,
+                  ),
+                  label: Text(
+                    loc.symptoms,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.upload_file),
-                  label: Text('Upload'),
+                  icon: const Icon(
+                    Icons.upload_file,
+                  ),
+                  label: Text(
+                    loc.upload,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.biotech),
-                  label: Text('Simulation'),
+                  icon: const Icon(
+                    Icons.biotech,
+                  ),
+                  label: Text(
+                    loc.simulation,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.person_search),
-                  label: Text('Doctor Requests'),
+                  icon: const Icon(
+                    Icons.person_search,
+                  ),
+                  label: Text(
+                    loc.doctorRequests,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.medical_services_outlined),
-                  label: Text('My Doctors'),
+                  icon: const Icon(
+                    Icons
+                        .medical_services_outlined,
+                  ),
+                  label: Text(
+                    loc.myDoctors,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.folder_shared),
-                  label: Text('Reports'),
+                  icon: const Icon(
+                    Icons.folder_shared,
+                  ),
+                  label: Text(
+                    loc.reports,
+                  ),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.info_outline),
-                  label: Text('About'),
+                  icon: const Icon(
+                    Icons.info_outline,
+                  ),
+                  label: Text(
+                    loc.about,
+                  ),
                 ),
               ],
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (int index) {
-                setState(() => _selectedIndex = index);
+              selectedIndex:
+                  _selectedIndex,
+              onDestinationSelected:
+                  (int index) {
+                setState(
+                  () => _selectedIndex =
+                      index,
+                );
               },
             ),
 
           Expanded(
             child: Container(
-              color: Colors.white,
+              color: theme
+                  .scaffoldBackgroundColor,
               child: Column(
                 children: [
-                  _buildHeader(context),
+                  _buildHeader(
+                    context,
+                  ),
                   Expanded(
-                    child: _pages[_selectedIndex.clamp(0, _pages.length - 1)],
+                    child: _pages[
+                        _selectedIndex
+                            .clamp(
+                      0,
+                      _pages.length -
+                          1,
+                    )],
                   ),
                 ],
               ),
@@ -145,65 +298,138 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
           ),
         ],
       ),
-      bottomNavigationBar: !isDesktop
-          ? BottomNavigationBar(
-              currentIndex: _selectedIndex > 4 ? 0 : _selectedIndex,
-              type: BottomNavigationBarType.fixed,
-              onTap: (index) => setState(() => _selectedIndex = index),
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.dashboard),
-                  label: 'Home',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label: 'Profile',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.medication),
-                  label: 'Meds',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.sick),
-                  label: 'Symptoms',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.medical_services_outlined),
-                  label: 'Doctors',
-                ),
-              ],
-            )
-          : null,
+
+      bottomNavigationBar:
+          !isDesktop
+              ? BottomNavigationBar(
+                  currentIndex:
+                      _selectedIndex > 4
+                          ? 0
+                          : _selectedIndex,
+                  type:
+                      BottomNavigationBarType
+                          .fixed,
+                  backgroundColor:
+                      theme.colorScheme
+                          .surface,
+                  selectedItemColor:
+                      theme.colorScheme
+                          .primary,
+                  unselectedItemColor:
+                      theme.colorScheme
+                          .onSurface
+                          .withOpacity(
+                              0.55),
+                  onTap:
+                      (index) => setState(
+                    () => _selectedIndex =
+                        index,
+                  ),
+                  items: [
+                    BottomNavigationBarItem(
+                      icon: const Icon(
+                        Icons.dashboard,
+                      ),
+                      label: loc.home,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(
+                        Icons.person,
+                      ),
+                      label: loc.profile,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(
+                        Icons.medication,
+                      ),
+                      label: loc.meds,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(
+                        Icons.sick,
+                      ),
+                      label:
+                          loc.symptoms,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(
+                        Icons
+                            .medical_services_outlined,
+                      ),
+                      label:
+                          loc.doctors,
+                    ),
+                  ],
+                )
+              : null,
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(
+    BuildContext context,
+  ) {
+    final theme =
+        Theme.of(context);
+
+    final loc =
+        AppLocalizations.of(context)!;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 24,
+        vertical: 16,
+      ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color:
+            theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: theme
+                .dividerColor
+                .withOpacity(0.2),
+          ),
+        ),
       ),
       child: Row(
         children: [
-          const Text(
-            "GeneX Medical Portal",
+          Text(
+            loc.geneXMedicalPortal,
             style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.blueGrey,
+              fontWeight:
+                  FontWeight.bold,
+              color: theme
+                  .colorScheme
+                  .onSurface,
             ),
           ),
+
           const Spacer(),
+
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.redAccent),
-            tooltip: 'Logout',
-            onPressed: _handleLogout,
+            icon: const Icon(
+              Icons.logout,
+              color:
+                  Colors.redAccent,
+            ),
+            tooltip: loc.logout,
+            onPressed:
+                _handleLogout,
           ),
+
           const SizedBox(width: 12),
+
           CircleAvatar(
-            backgroundColor: Colors.teal.shade50,
-            child: const Icon(Icons.person, color: Colors.teal),
+            backgroundColor: theme
+                .colorScheme.primary
+                .withOpacity(0.12),
+            child: Icon(
+              Icons.person,
+              color: theme
+                  .colorScheme
+                  .primary,
+            ),
           ),
         ],
       ),
@@ -211,143 +437,137 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
   }
 }
 
-class DashboardOverview extends ConsumerWidget {
-  const DashboardOverview({super.key});
+class DashboardOverview
+    extends ConsumerWidget {
+  const DashboardOverview({
+    super.key,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final medsAsync = ref.watch(medicinesProvider);
-    final reportsAsync = ref.watch(geneReportsProvider);
+  Widget build(
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    final theme =
+        Theme.of(context);
+
+    final loc =
+        AppLocalizations.of(context)!;
+
+    final medsAsync =
+        ref.watch(
+      medicinesProvider,
+    );
+
+    final reportsAsync =
+        ref.watch(
+      geneReportsProvider,
+    );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding:
+          const EdgeInsets.all(24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
-          const Text(
-            "System Overview",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          Text(
+            loc.systemOverview,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight:
+                  FontWeight.bold,
+              color: theme
+                  .colorScheme
+                  .onSurface,
+            ),
           ),
-          const SizedBox(height: 20),
+
+          const SizedBox(
+              height: 20),
+
           GridView.count(
-            crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+            crossAxisCount:
+                MediaQuery.of(context)
+                            .size
+                            .width >
+                        1200
+                    ? 3
+                    : 2,
             shrinkWrap: true,
             crossAxisSpacing: 20,
             mainAxisSpacing: 20,
             childAspectRatio: 1.5,
-            physics: const NeverScrollableScrollPhysics(),
+            physics:
+                const NeverScrollableScrollPhysics(),
             children: [
               reportsAsync.when(
                 data: (reports) {
-                  final latestReport = reports.isNotEmpty ? reports.first : null;
+                  final latestReport =
+                      reports.isNotEmpty
+                          ? reports.first
+                          : null;
+
                   final String status =
-                      latestReport != null ? latestReport['label'] : "No Data";
-                  final Color statusColor =
-                      status.contains("High") ? Colors.red : Colors.green;
+                      latestReport !=
+                              null
+                          ? latestReport[
+                              'label']
+                          : loc.noData;
+
+                  final Color
+                      statusColor =
+                      status.contains(
+                              "High")
+                          ? Colors.red
+                          : Colors.green;
 
                   return InkWell(
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const DnaModelVisualizationScreen(),
+                          builder:
+                              (_) =>
+                                  const DnaModelVisualizationScreen(),
                         ),
                       );
                     },
-                    borderRadius: BorderRadius.circular(12),
-                    child: _medicalWidget(
-                      "Vitals Status",
+                    borderRadius:
+                        BorderRadius.circular(
+                            12),
+                    child:
+                        _medicalWidget(
+                      context,
+                      loc.vitalsStatus,
                       status,
-                      latestReport != null
+                      latestReport !=
+                              null
                           ? Icons.favorite
                           : Icons.favorite_border,
                       statusColor,
                     ),
                   );
                 },
-                loading: () => _medicalWidget(
-                  "Vitals Status",
-                  "Loading...",
+                loading:
+                    () => _medicalWidget(
+                  context,
+                  loc.vitalsStatus,
+                  loc.loading,
                   Icons.favorite,
                   Colors.grey,
                 ),
-                error: (err, stack) => _medicalWidget(
-                  "Vitals Status",
-                  "Error",
+                error:
+                    (
+                      err,
+                      stack,
+                    ) => _medicalWidget(
+                  context,
+                  loc.vitalsStatus,
+                  loc.error,
                   Icons.error,
                   Colors.orange,
                 ),
-              ),
-
-              medsAsync.when(
-                data: (meds) => InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const MedHistoryScreen(),
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: _medicalWidget(
-                    "Active Meds",
-                    "${meds.length} Prescribed",
-                    Icons.medication,
-                    Colors.blue,
-                  ),
-                ),
-                loading: () => _medicalWidget(
-                  "Active Meds",
-                  "Loading...",
-                  Icons.medication,
-                  Colors.grey,
-                ),
-                error: (err, stack) => _medicalWidget(
-                  "Active Meds",
-                  "Error",
-                  Icons.error,
-                  Colors.orange,
-                ),
-              ),
-
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ReportsScreen()),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: _medicalWidget(
-                  "All Reports",
-                  "View History",
-                  Icons.folder_copy,
-                  Colors.blueGrey,
-                ),
-              ),
-
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MyDoctorsScreen()),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: _medicalWidget(
-                  "My Doctors",
-                  "View & Chat",
-                  Icons.medical_services_outlined,
-                  Colors.teal,
-                ),
-              ),
-
-              _medicalWidget(
-                "Next Simulation",
-                "Scheduled: Feb 25",
-                Icons.science,
-                Colors.purple,
               ),
             ],
           ),
@@ -357,30 +577,83 @@ class DashboardOverview extends ConsumerWidget {
   }
 }
 
-Widget _medicalWidget(String title, String value, IconData icon, Color color) {
+Widget _medicalWidget(
+  BuildContext context,
+  String title,
+  String value,
+  IconData icon,
+  Color color,
+) {
+  final theme =
+      Theme.of(context);
+
+  final isDark =
+      theme.brightness ==
+          Brightness.dark;
+
   return Container(
-    padding: const EdgeInsets.all(20),
+    padding:
+        const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
+      color:
+          theme.colorScheme.surface,
+      borderRadius:
+          BorderRadius.circular(
+              12),
+      border: Border.all(
+        color: theme.dividerColor
+            .withOpacity(0.15),
+      ),
       boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
-        ),
+        if (!isDark)
+          BoxShadow(
+            color: Colors.black
+                .withOpacity(0.05),
+            blurRadius: 10,
+            offset:
+                const Offset(0, 4),
+          ),
       ],
     ),
     child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment:
+          MainAxisAlignment.center,
       children: [
-        Icon(icon, color: color, size: 40),
-        const SizedBox(height: 10),
-        Text(title, style: const TextStyle(color: Colors.grey)),
+        Icon(
+          icon,
+          color: color,
+          size: 40,
+        ),
+
+        const SizedBox(
+            height: 10),
+
+        Text(
+          title,
+          textAlign:
+              TextAlign.center,
+          style: TextStyle(
+            color: theme
+                .colorScheme
+                .onSurface
+                .withOpacity(0.65),
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
         Text(
           value,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          textAlign:
+              TextAlign.center,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight:
+                FontWeight.bold,
+            color: theme
+                .colorScheme
+                .onSurface,
+          ),
         ),
       ],
     ),

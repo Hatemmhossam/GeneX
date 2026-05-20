@@ -1,10 +1,12 @@
 // lib/views/auth/signin_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../viewmodels/providers.dart';
 import '../../viewmodels/auth_state.dart';
 import '../../widgets/loading_button.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
 
 class SigninView extends ConsumerStatefulWidget {
   const SigninView({super.key});
@@ -20,10 +22,7 @@ class _SigninViewState extends ConsumerState<SigninView> {
 
   bool _obscurePassword = true;
 
-  // Blue Theme Constants
   static const Color mainBlue = Color(0xFF1A5699);
-  static const Color backgroundLightGray = Color(0xFFE5E5E5);
-  static const Color inputFieldGray = Color(0xFFF3F3F3);
 
   @override
   void dispose() {
@@ -34,6 +33,10 @@ class _SigninViewState extends ConsumerState<SigninView> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final authState = ref.watch(authViewModelProvider);
     final authVM = ref.read(authViewModelProvider.notifier);
 
@@ -41,7 +44,9 @@ class _SigninViewState extends ConsumerState<SigninView> {
       if (next.status == AuthStatus.authenticated) {
         final role = next.role;
         final prefs = await SharedPreferences.getInstance();
+
         await prefs.setString('role', role ?? '');
+
         if (next.token != null) {
           await prefs.setString('token', next.token!);
         }
@@ -56,11 +61,11 @@ class _SigninViewState extends ConsumerState<SigninView> {
           showDialog(
             context: context,
             builder: (_) => AlertDialog(
-              title: const Text('Access denied'),
+              title: Text(loc.accessDenied),
               content: Text(
                 role == null || role.isEmpty
-                    ? 'Your account has no role assigned.'
-                    : 'Your role "$role" is not allowed to access this app.',
+                    ? loc.accountNoRole
+                    : loc.roleNotAllowed,
               ),
               actions: [
                 TextButton(
@@ -68,31 +73,38 @@ class _SigninViewState extends ConsumerState<SigninView> {
                     Navigator.pop(context);
                     prefs.clear();
                   },
-                  child: const Text('OK'),
+                  child: Text(loc.ok),
                 ),
               ],
             ),
           );
         }
       } else if (next.status == AuthStatus.error && next.errorMessage != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.errorMessage!)),
+        );
       }
     });
 
     return Scaffold(
-      backgroundColor: backgroundLightGray,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Material(
-            elevation: 4,
-            borderRadius: BorderRadius.circular(12),
+            elevation: isDark ? 0 : 4,
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
             clipBehavior: Clip.antiAlias,
             child: Container(
-              color: Colors.white,
               width: 800,
               height: 550,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                border: Border.all(
+                  color: theme.dividerColor.withOpacity(0.15),
+                ),
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -105,32 +117,42 @@ class _SigninViewState extends ConsumerState<SigninView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('Sign-in', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black)),
+                            Text(
+                              loc.signIn,
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
                             const SizedBox(height: 32),
-
                             _buildTextField(
+                              context: context,
                               controller: _usernameCtr,
-                              hintText: 'Username',
+                              hintText: loc.username,
                               icon: Icons.person_outline,
-                              validator: (v) => v != null && v.isNotEmpty ? null : 'Enter valid username',
+                              validator: (v) => v != null && v.isNotEmpty
+                                  ? null
+                                  : loc.enterValidUsername,
                             ),
                             const SizedBox(height: 16),
-
                             _buildTextField(
+                              context: context,
                               controller: _passwordCtr,
-                              hintText: 'Password',
+                              hintText: loc.password,
                               icon: Icons.lock_outline,
                               isPassword: true,
-                              validator: (v) => v != null && v.length >= 6 ? null : 'Min 6 chars',
+                              validator: (v) => v != null && v.length >= 6
+                                  ? null
+                                  : loc.minSixChars,
                             ),
                             const SizedBox(height: 24),
-
                             SizedBox(
                               width: double.infinity,
                               height: 50,
                               child: LoadingButton(
-                                loading: authState.status == AuthStatus.authenticating,
-                                color: mainBlue,
+                                loading: authState.status ==
+                                    AuthStatus.authenticating,
+                                color: theme.colorScheme.primary,
                                 textColor: Colors.white,
                                 onPressed: () {
                                   if (_formKey.currentState!.validate()) {
@@ -140,20 +162,35 @@ class _SigninViewState extends ConsumerState<SigninView> {
                                     );
                                   }
                                 },
-                                label: 'Signin',
+                                label: loc.signIn,
                               ),
                             ),
                             const SizedBox(height: 24),
-                            const Align(alignment: Alignment.center, child: Text('or signin with', style: TextStyle(color: Colors.grey))),
+                            Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                loc.orSignInWith,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.6),
+                                ),
+                              ),
+                            ),
                             const SizedBox(height: 16),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 _buildSocialButton(Icons.facebook, Colors.blue),
                                 const SizedBox(width: 16),
-                                _buildSocialButton(Icons.g_mobiledata, Colors.redAccent),
+                                _buildSocialButton(
+                                  Icons.g_mobiledata,
+                                  Colors.redAccent,
+                                ),
                                 const SizedBox(width: 16),
-                                _buildSocialButton(Icons.chat_bubble_outline, Colors.cyan),
+                                _buildSocialButton(
+                                  Icons.chat_bubble_outline,
+                                  Colors.cyan,
+                                ),
                               ],
                             ),
                           ],
@@ -164,11 +201,19 @@ class _SigninViewState extends ConsumerState<SigninView> {
                   Expanded(
                     flex: 4,
                     child: Container(
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Color(0xFF1A5699), Color(0xFF2967A6)],
+                          colors: isDark
+                              ? const [
+                                  Color(0xFF0F172A),
+                                  Color(0xFF1E3A8A),
+                                ]
+                              : const [
+                                  Color(0xFF1A5699),
+                                  Color(0xFF2967A6),
+                                ],
                         ),
                       ),
                       child: Padding(
@@ -176,23 +221,46 @@ class _SigninViewState extends ConsumerState<SigninView> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('Welcome back!', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
+                            Text(
+                              loc.welcomeBack,
+                              style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                             const SizedBox(height: 16),
-                            const Text(
-                              'Welcome back! We are so happy to have you here. It\'s great to see you again. We hope you are safe.',
+                            Text(
+                              loc.welcomeBackMessage,
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 16, color: Colors.white70, height: 1.5),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.white70,
+                                height: 1.5,
+                              ),
                             ),
                             const SizedBox(height: 32),
                             OutlinedButton(
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.white, width: 1),
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                                side: const BorderSide(
+                                  color: Colors.white,
+                                  width: 1,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
                               ),
-                              onPressed: () => Navigator.of(context).pushReplacementNamed('/signup'),
-                              child: const Text('No account yet? Signup.', style: TextStyle(fontSize: 16)),
+                              onPressed: () => Navigator.of(context)
+                                  .pushReplacementNamed('/signup'),
+                              child: Text(
+                                loc.noAccountYet,
+                                style: const TextStyle(fontSize: 16),
+                              ),
                             ),
                           ],
                         ),
@@ -209,28 +277,47 @@ class _SigninViewState extends ConsumerState<SigninView> {
   }
 
   Widget _buildTextField({
+    required BuildContext context,
     required TextEditingController controller,
     required String hintText,
     required IconData icon,
     bool isPassword = false,
     String? Function(String?)? validator,
   }) {
+    final theme = Theme.of(context);
+
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       validator: validator,
+      style: TextStyle(color: theme.colorScheme.onSurface),
       decoration: InputDecoration(
         hintText: hintText,
-        prefixIcon: Icon(icon, color: mainBlue),
-        hintStyle: const TextStyle(color: Colors.grey),
+        prefixIcon: Icon(icon, color: theme.colorScheme.primary),
+        hintStyle: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
+        ),
         filled: true,
-        fillColor: inputFieldGray,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide.none),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        fillColor: theme.inputDecorationTheme.fillColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
         suffixIcon: isPassword
             ? IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: mainBlue),
-                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  color: theme.colorScheme.primary,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                },
               )
             : null,
       ),
@@ -239,7 +326,7 @@ class _SigninViewState extends ConsumerState<SigninView> {
 
   Widget _buildSocialButton(IconData icon, Color color) {
     return CircleAvatar(
-      backgroundColor: color.withOpacity(0.1),
+      backgroundColor: color.withOpacity(0.12),
       child: Icon(icon, color: color),
     );
   }

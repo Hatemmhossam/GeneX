@@ -53,3 +53,4 @@ urlpatterns = [
 ]
 
 
+print("END main urls.py", flush=True)

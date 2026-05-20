@@ -13,6 +13,7 @@ from .models import DoctorPatient
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from .models import User, Medicine, SymptomReport,TwinSimulationReport
 from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer,MedicalTestResultSerializer
+from xgboost import XGBClassifier
 
 from django.db import connection
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -706,8 +707,18 @@ def analyze_drug(request):
     except Exception as e:
         return Response({"error": f"Unexpected server error: {str(e)}"}, status=500)
 
+print("BEFORE loading model", flush=True)
 
-MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
+MODEL = None
+
+def get_model():
+    global MODEL
+
+    if MODEL is None:
+        MODEL = XGBClassifier()
+        MODEL.load_model("api/ml_asssets/best_ra_xgb_model.json")
+
+    return MODEL
 FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
 class GeneUploadView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -931,7 +942,6 @@ def get_user_risk(request, user_id):
         )
 
 
-ml_service = MLService()
 
 
 @csrf_exempt
@@ -1037,3 +1047,4 @@ def get_assigned_doctors(request):
             continue
 
     return Response(doctors_data, status=status.HTTP_200_OK)
+print("END OF VIEWS.PY REACHED", flush=True)
