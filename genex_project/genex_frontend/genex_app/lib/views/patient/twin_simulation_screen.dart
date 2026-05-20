@@ -56,7 +56,7 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
       final picked = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv', 'txt'],
-        withData: kIsWeb,
+        withData: true,
       );
 
       if (picked != null && picked.files.isNotEmpty) {
@@ -79,56 +79,102 @@ class _TwinSimulationScreenState extends State<TwinSimulationScreen> {
     }
   }
 
+  // Future<void> evaluate() async {
+  //   if (selectedFile == null) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text("Please upload the patient CSV first.")),
+  //     );
+  //     return;
+  //   }
+
+  //   if (geneDrug1Controller.text.trim().isEmpty) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text("Please enter at least Drug 1.")),
+  //     );
+  //     return;
+  //   }
+
+  //   setState(() => loading = true);
+
+  //   try {
+  //     // final res = await apiService
+  //     //     .evaluateTwinSimulation(
+  //     //       file: selectedFile!,
+  //     //       drug1: geneDrug1Controller.text.trim(),
+  //     //       drug2: geneDrug2Controller.text.trim(),
+  //     //     )
+  //     //     .timeout(const Duration(seconds: 30));
+  //         final drugs = [
+  //         geneDrug1Controller.text.trim(),
+  //         if (geneDrug2Controller.text.trim().isNotEmpty)
+  //           geneDrug2Controller.text.trim(),
+  //       ];
+
+  //       final res = await apiService
+  //           .runTwinSimulation(drugs: drugs)
+  //           .timeout(const Duration(seconds: 120));
+
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       result = res;
+  //       loading = false;
+  //     });
+  //   } catch (e) {
+  //     if (!mounted) return;
+
+  //     setState(() => loading = false);
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text("Error: $e")));
+  //   }
+  // }
   Future<void> evaluate() async {
-    if (selectedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please upload the patient CSV first.")),
-      );
-      return;
-    }
-
-    if (geneDrug1Controller.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter at least Drug 1.")),
-      );
-      return;
-    }
-
-    setState(() => loading = true);
-
-    try {
-      // final res = await apiService
-      //     .evaluateTwinSimulation(
-      //       file: selectedFile!,
-      //       drug1: geneDrug1Controller.text.trim(),
-      //       drug2: geneDrug2Controller.text.trim(),
-      //     )
-      //     .timeout(const Duration(seconds: 30));
-          final drugs = [
-          geneDrug1Controller.text.trim(),
-          if (geneDrug2Controller.text.trim().isNotEmpty)
-            geneDrug2Controller.text.trim(),
-        ];
-
-        final res = await apiService
-            .runTwinSimulation(drugs: drugs)
-            .timeout(const Duration(seconds: 120));
-
-      if (!mounted) return;
-
-      setState(() {
-        result = res;
-        loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => loading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
-    }
+  if (selectedFile == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Please upload the patient CSV first.")),
+    );
+    return;
   }
+
+  if (geneDrug1Controller.text.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Please enter at least Drug 1.")),
+    );
+    return;
+  }
+
+  setState(() => loading = true);
+
+  try {
+    await apiService.uploadGeneFile(file: selectedFile!);
+
+    final drugs = [
+      geneDrug1Controller.text.trim(),
+      if (geneDrug2Controller.text.trim().isNotEmpty)
+        geneDrug2Controller.text.trim(),
+    ];
+
+    final res = await apiService
+        .runTwinSimulation(drugs: drugs)
+        .timeout(const Duration(seconds: 120));
+
+    if (!mounted) return;
+
+    setState(() {
+      result = res;
+      loading = false;
+    });
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() => loading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Error: $e")),
+    );
+  }
+}
 
   Future<void> saveReport() async {
     if (result == null) return;

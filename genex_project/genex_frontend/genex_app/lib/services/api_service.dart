@@ -415,4 +415,35 @@ class ApiService {
       rethrow;
     }
   }
+  Future<Map<String, dynamic>> uploadGeneFile({
+  required PlatformFile file,
+}) async {
+  await _refreshAuthHeader();
+
+  MultipartFile multipartFile;
+
+  if (kIsWeb) {
+    multipartFile = MultipartFile.fromBytes(
+      file.bytes!,
+      filename: file.name,
+    );
+  } else {
+    multipartFile = await MultipartFile.fromFile(
+      file.path!,
+      filename: file.name,
+    );
+  }
+
+  final formData = FormData.fromMap({
+    "file": multipartFile,
+  });
+
+  final response = await _dio.post(
+    'gene-upload/',
+    data: formData,
+    options: Options(contentType: 'multipart/form-data'),
+  );
+
+  return Map<String, dynamic>.from(response.data);
+}
 }
