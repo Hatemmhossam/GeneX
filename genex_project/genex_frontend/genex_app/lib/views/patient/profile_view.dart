@@ -40,7 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() => isFetching = false);
       return;
     }
-
+    //retrieve api from urls.py that takes functions from views.py
     try {
       final url = Uri.parse('http://localhost:8000/api/profile/');
       final response = await http.get(
@@ -117,7 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(title: const Text('Patient Medical File'), elevation: 0),
+      appBar: AppBar(title: const Text('Patient Profile'), elevation: 0),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),

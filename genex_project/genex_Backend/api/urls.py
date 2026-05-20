@@ -13,7 +13,10 @@ from .views import get_user_risk
 from .views import evaluate
 import ml_api.views 
 from .views import save_report
+from .views import mri_predict_gradcam
 from . import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 
 router = DefaultRouter()
@@ -50,6 +53,9 @@ urlpatterns = [
     path('predict_xai/', ml_api.views.predict_xai, name='predict_xai'),
     path("save-report/",save_report),
     path('patient/assigned-doctors/', views.get_assigned_doctors, name='get_assigned_doctors'),
+    path("mri-predict-gradcam/", mri_predict_gradcam, name="mri_predict_gradcam"),
+
 ]
 
 
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

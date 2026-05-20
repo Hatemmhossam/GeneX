@@ -3,6 +3,24 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q
 from rest_framework import status, views, viewsets, generics 
 from rest_framework.response import Response
+import traceback
+
+import os
+import uuid
+import zipfile
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.models as models
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from django.conf import settings
+
+
+
+
 
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -723,11 +741,7 @@ class GeneUploadView(APIView):
             )
 
         # Optional: restrict upload type
-        if not file.name.lower().endswith(".csv"):
-            return Response(
-                {"error": "Only CSV files are supported"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        
 
         try:
             # 1) Read CSV
@@ -952,7 +966,7 @@ def evaluate(request):
         try:
             patient_df = pd.read_csv(file)
 
-            result = ml_service.evaluate(
+            result = ml_service.evaluate(#benrooh ll services.py hnla2y class esmo MLService w feha function evaluate l feha ba el functionality
                 drug1=drug1,
                 drug2=drug2,
                 patient_df=patient_df,
@@ -1040,3 +1054,273 @@ def get_assigned_doctors(request):
             continue
 
     return Response(doctors_data, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+THRESHOLD = 0.55
+
+
+class MRNetFastModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        backbone = models.resnet18(weights=None)
+        self.encoder = nn.Sequential(*list(backbone.children())[:-1])
+        self.feature_dim = 512
+
+        self.classifier = nn.Sequential(
+            nn.Linear(self.feature_dim * 3, 256),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, 1)
+        )
+
+    def encode(self, x):
+        B, S, C, H, W = x.shape
+        x = x.view(B * S, C, H, W)
+        x = self.encoder(x)
+        x = x.view(B, S, -1)
+        x, _ = torch.max(x, dim=1)
+        return x
+
+    def forward(self, axial, coronal, sagittal):
+        a = self.encode(axial)
+        c = self.encode(coronal)
+        s = self.encode(sagittal)
+
+        x = torch.cat([a, c, s], dim=1)
+        return self.classifier(x).squeeze(1)
+
+
+MODEL_PATH = os.path.join(settings.BASE_DIR, "api", "ml_asssets", "best_fast_mrnet.pth")
+
+mri_model = MRNetFastModel().to(device)
+mri_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+mri_model.eval()
+
+
+def preprocess_mri(exam, image_size=(224, 224), num_slices=16):
+
+    exam = exam.astype(np.float32)
+
+    # normalize
+    exam = (exam - exam.min()) / (exam.max() - exam.min() + 1e-8)
+
+    # ensure enough slices
+    if len(exam) >= num_slices:
+        start = (len(exam) - num_slices) // 2
+        exam = exam[start:start + num_slices]
+    else:
+        pad = num_slices - len(exam)
+        exam = np.pad(
+            exam,
+            ((0, pad), (0, 0), (0, 0)),
+            mode='constant'
+        )
+
+    processed = []
+
+    for sl in exam:
+
+        # slice shape should be [H, W]
+        sl = torch.tensor(sl, dtype=torch.float32)
+
+        print("SLICE SHAPE:", sl.shape)
+
+        # make [1,1,H,W]
+        sl = sl.unsqueeze(0).unsqueeze(0)
+
+        print("BEFORE INTERPOLATE:", sl.shape)
+
+        # resize
+        sl = F.interpolate(
+            sl,
+            size=(224, 224),
+            mode="bilinear",
+            align_corners=False
+        )
+
+        print("AFTER INTERPOLATE:", sl.shape)
+
+        # remove batch dim
+        sl = sl.squeeze(0)
+
+        # grayscale -> RGB
+        sl = sl.repeat(3, 1, 1)
+
+        processed.append(sl)
+
+    return torch.stack(processed)
+
+class GradCAM:
+    def __init__(self, model):
+        self.model = model
+        self.target_layer = self.model.encoder[7]
+        self.activations = []
+        self.gradients = []
+        self.hook = self.target_layer.register_forward_hook(self._forward_hook)
+
+    def _forward_hook(self, module, input, output):
+        idx = len(self.activations)
+        self.activations.append(output)
+        self.gradients.append(None)
+        output.register_hook(lambda grad, idx=idx: self._save_gradient(idx, grad))
+
+    def _save_gradient(self, idx, grad):
+        self.gradients[idx] = grad
+
+    def remove_hooks(self):
+        self.hook.remove()
+
+    def generate(self, axial, coronal, sagittal, plane="axial", slice_idx=8):
+        self.activations = []
+        self.gradients = []
+
+        axial = axial.unsqueeze(0).to(device)
+        coronal = coronal.unsqueeze(0).to(device)
+        sagittal = sagittal.unsqueeze(0).to(device)
+
+        self.model.zero_grad()
+
+        logit = self.model(axial, coronal, sagittal)
+        prob = torch.sigmoid(logit)[0].item()
+
+        score = logit[0] if prob >= THRESHOLD else -logit[0]
+        score.backward()
+
+        plane_index = {"axial": 0, "coronal": 1, "sagittal": 2}[plane]
+
+        activation = self.activations[plane_index]
+        gradient = self.gradients[plane_index]
+
+        weights = gradient.mean(dim=(2, 3), keepdim=True)
+        cam = (weights * activation).sum(dim=1).squeeze()
+
+        cam = F.relu(cam)
+        cam = cam - cam.min()
+        cam = cam / (cam.max() + 1e-8)
+
+        return cam.detach().cpu(), prob
+
+
+def save_gradcam_images(axial, coronal, sagittal):
+    gradcam = GradCAM(mri_model)
+
+    results = {}
+    planes = {
+        "axial": axial,
+        "coronal": coronal,
+        "sagittal": sagittal,
+    }
+
+    for plane, tensor in planes.items():
+        slice_idx = tensor.shape[0] // 2
+
+        cam, prob = gradcam.generate(
+            axial,
+            coronal,
+            sagittal,
+            plane=plane,
+            slice_idx=slice_idx
+        )
+
+        image = tensor[slice_idx, 0].cpu().numpy()
+        image = image - image.min()
+        image = image / (image.max() + 1e-8)
+
+        if cam.dim() == 3:
+            cam = cam[slice_idx]
+
+        cam = cam.unsqueeze(0).unsqueeze(0)
+
+        cam_resized = F.interpolate(
+            cam,
+            size=image.shape,
+            mode="bilinear",
+            align_corners=False
+        ).squeeze().numpy()
+
+        filename = f"gradcam_{plane}_{uuid.uuid4().hex}.png"
+        gradcam_dir = os.path.join(settings.MEDIA_ROOT, "gradcam")
+        os.makedirs(gradcam_dir, exist_ok=True)
+
+        save_path = os.path.join(gradcam_dir, filename)
+
+        plt.figure(figsize=(4, 4))
+        plt.imshow(image, cmap="gray")
+        plt.imshow(cam_resized, cmap="jet", alpha=0.45)
+        plt.axis("off")
+        plt.tight_layout()
+        plt.savefig(save_path, bbox_inches="tight", pad_inches=0, dpi=100)
+        plt.close()
+
+        results[plane] = f"{settings.MEDIA_URL}gradcam/{filename}"
+
+    gradcam.remove_hooks()
+
+    return results, prob
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def mri_predict_gradcam(request):
+    try:
+        uploaded_file = request.FILES.get("file")
+
+        if uploaded_file is None:
+            return JsonResponse({"error": "No MRI file uploaded."}, status=400)
+
+        temp_dir = os.path.join(settings.MEDIA_ROOT, "temp_mri")
+        os.makedirs(temp_dir, exist_ok=True)
+
+        zip_path = os.path.join(temp_dir, uploaded_file.name)
+
+        with open(zip_path, "wb+") as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        extract_dir = os.path.join(temp_dir, uuid.uuid4().hex)
+        os.makedirs(extract_dir, exist_ok=True)
+
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(extract_dir)
+
+        axial_path = os.path.join(extract_dir, "axial.npy")
+        coronal_path = os.path.join(extract_dir, "coronal.npy")
+        sagittal_path = os.path.join(extract_dir, "sagittal.npy")
+
+        if not all(os.path.exists(p) for p in [axial_path, coronal_path, sagittal_path]):
+            return JsonResponse({
+                "error": "ZIP must contain axial.npy, coronal.npy, and sagittal.npy."
+            }, status=400)
+
+        axial = preprocess_mri(np.load(axial_path))
+        coronal = preprocess_mri(np.load(coronal_path))
+        sagittal = preprocess_mri(np.load(sagittal_path))
+
+        gradcam_urls, risk_score = save_gradcam_images(axial, coronal, sagittal)
+        prediction = "Abnormal" if risk_score >= THRESHOLD else "Normal"
+
+        return JsonResponse({
+         "risk_score": risk_score,
+        "prediction": prediction,
+        "gradcam_urls": {
+        "axial": request.build_absolute_uri(gradcam_urls["axial"]),
+        "coronal": request.build_absolute_uri(gradcam_urls["coronal"]),
+        "sagittal": request.build_absolute_uri(gradcam_urls["sagittal"]),
+    },
+    "explanation": "The Grad-CAM images highlight the MRI regions that most influenced the abnormality prediction across axial, coronal, and sagittal views."
+})
+
+    except Exception as e:
+        print("MRI ERROR:")
+        traceback.print_exc()
+
+        return JsonResponse({
+            "error": str(e)
+        }, status=500)

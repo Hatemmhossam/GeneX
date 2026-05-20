@@ -30,8 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-    
-   
+  webview_flutter: ^4.7.0
+  flutter_tts: ^4.2.2
+  speech_to_text: ^7.0.0
   http: ^0.13.3 
   intl: ^0.18.0 
   dio: ^5.4.0
