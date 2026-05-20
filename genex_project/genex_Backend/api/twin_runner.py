@@ -1,8 +1,114 @@
 import os
+import pickle
 import numpy as np
 import pandas as pd
+import torch
 
-from api.digital_twin import PipelineConfig, run_therapy_pipeline
+from api.digital_twin import (
+    DeepDenoisingAE,
+    DigitalTwin,
+    PipelineConfig,
+    PATHWAYS,
+)
+
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ARTIFACT_DIR = os.path.join(BASE_DIR, "ml_api", "artifacts")
+
+
+def load_pickle(file_name):
+    path = os.path.join(ARTIFACT_DIR, file_name)
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Missing artifact: {path}")
+
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+def load_twin_artifacts():
+    gene_cols = load_pickle("twin_gene_cols.pkl")
+    twin_scaler = load_pickle("twin_scaler.pkl")
+    drug_to_targets = load_pickle("drug_to_targets.pkl")
+
+    model_path = os.path.join(ARTIFACT_DIR, "twin_model.pth")
+    healthy_tensor_path = os.path.join(ARTIFACT_DIR, "healthy_tensor.pt")
+
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Missing artifact: {model_path}")
+
+    if not os.path.exists(healthy_tensor_path):
+        raise FileNotFoundError(f"Missing artifact: {healthy_tensor_path}")
+
+    healthy_tensor = torch.load(healthy_tensor_path, map_location="cpu")
+
+    model = DeepDenoisingAE(
+        input_dim=len(gene_cols),
+        latent_dim=64
+    )
+
+    state = torch.load(model_path, map_location="cpu")
+    model.load_state_dict(state)
+    model.eval()
+
+    return {
+        "gene_cols": gene_cols,
+        "twin_scaler": twin_scaler,
+        "drug_to_targets": drug_to_targets,
+        "healthy_tensor": healthy_tensor,
+        "model": model,
+    }
+
+
+def load_patient_gene_file(file_path):
+    try:
+        df = pd.read_csv(file_path, sep="\t")
+    except Exception:
+        df = pd.read_csv(file_path)
+
+    df.columns = [str(c).strip() for c in df.columns]
+
+    gene_col = None
+    for col in ["GeneSymbol", "Hugo_Symbol", "gene", "GENE", "symbol"]:
+        if col in df.columns:
+            gene_col = col
+            break
+
+    if gene_col is None:
+        raise ValueError("Could not find gene symbol column in patient gene file.")
+
+    expr_cols = [c for c in df.columns if c != gene_col]
+
+    if not expr_cols:
+        raise ValueError("No expression columns found in patient gene file.")
+
+    df[gene_col] = df[gene_col].astype(str).str.strip().str.upper()
+    df = df.drop_duplicates(subset=[gene_col])
+
+    mat = df.set_index(gene_col)[expr_cols].apply(pd.to_numeric, errors="coerce")
+
+    first_sample = mat.columns[0]
+    patient_vec = mat[first_sample]
+
+    return patient_vec
+
+
+def build_patient_tensor(patient_vec, gene_cols, twin_scaler):
+    patient_vec = patient_vec.copy()
+    patient_vec.index = patient_vec.index.astype(str).str.upper()
+
+    aligned = pd.Series({
+        gene: pd.to_numeric(patient_vec.get(gene, np.nan), errors="coerce")
+        for gene in gene_cols
+    })
+
+    aligned = aligned.fillna(0)
+
+    scaled = twin_scaler.transform(
+        pd.DataFrame([aligned.values], columns=gene_cols)
+    )
+
+    return torch.tensor(scaled, dtype=torch.float32)
 
 
 def clean_for_json(value):
@@ -13,32 +119,7 @@ def clean_for_json(value):
         return value.replace({np.nan: None}).to_dict()
 
     if isinstance(value, dict):
-        cleaned = {}
-        skip_keys = {
-            "patient_df",
-            "patient_mat",
-            "patient_vec",
-            "patient_z",
-            "immune_map",
-            "master_df",
-            "healthy_expr",
-            "X_master_scaled",
-            "healthy_scaled",
-            "twin_model",
-            "healthy_tensor",
-            "patient_tensor",
-            "training_artifacts",
-            "twin_fit",
-            "twin_reference",
-            "patient_twin",
-        }
-
-        for key, val in value.items():
-            if key in skip_keys:
-                continue
-            cleaned[key] = clean_for_json(val)
-
-        return cleaned
+        return {str(k): clean_for_json(v) for k, v in value.items()}
 
     if isinstance(value, list):
         return [clean_for_json(v) for v in value]
@@ -57,47 +138,148 @@ def clean_for_json(value):
     return value
 
 
-def get_required_path(env_name):
-    path = os.getenv(env_name)
-
-    if not path:
-        raise ValueError(f"{env_name} is missing from .env")
-
-    if not os.path.exists(path):
-        raise ValueError(f"{env_name} file does not exist: {path}")
-
-    return path
-
-
-def run_full_twin_pipeline_for_user(user, drugs=None):
+def run_twin_runtime_for_user(user, drugs):
     if not getattr(user, "current_gene_file", None):
         raise ValueError("No active gene expression file found for this user.")
 
-    patient_expr_path = user.current_gene_file.file.path
+    artifacts = load_twin_artifacts()
 
-    config = PipelineConfig(
-        patient_expr_path=patient_expr_path,
-        immune_map_path=get_required_path("TWIN_IMMUNE_MAP_PATH"),
-        prism_dose_response_path=get_required_path("TWIN_PRISM_PATH"),
-        ccle_expr_path=get_required_path("TWIN_CCLE_PATH"),
-        twin_master_df_path=get_required_path("TWIN_MASTER_DF_PATH"),
-        dgidb_cache_path=os.getenv("TWIN_DGIDB_CACHE_PATH", ""),
+    gene_cols = artifacts["gene_cols"]
+    twin_scaler = artifacts["twin_scaler"]
+    drug_to_targets = artifacts["drug_to_targets"]
+    healthy_tensor = artifacts["healthy_tensor"]
+    model = artifacts["model"]
+
+    patient_file_path = user.current_gene_file.file.path
+    patient_vec = load_patient_gene_file(patient_file_path)
+
+    patient_tensor = build_patient_tensor(
+        patient_vec=patient_vec,
+        gene_cols=gene_cols,
+        twin_scaler=twin_scaler,
     )
 
-    results = run_therapy_pipeline(
+    config = PipelineConfig()
+
+    twin = DigitalTwin(
+        gene_cols=gene_cols,
+        healthy_tensor=healthy_tensor,
+        drug_to_targets=drug_to_targets,
+        pathways=PATHWAYS,
         config=config,
-        patient_expr_path=patient_expr_path,
-        patient_sample=None,
-        patient_sample_index=5,
-        candidate_drugs=drugs,
     )
 
-    return {
-        "input_drugs": drugs or [],
-        "fused_single": clean_for_json(results.get("fused_single", pd.DataFrame()).head(20)),
-        "combo_rank": clean_for_json(results.get("combo_rank", pd.DataFrame()).head(20)),
-        "twin_single": clean_for_json(results.get("twin_single", pd.DataFrame()).head(20)),
-        "twin_pairs": clean_for_json(results.get("twin_pairs", pd.DataFrame()).head(20)),
-        "baseline_pathways": clean_for_json(results.get("baseline_pathways", pd.DataFrame())),
-        "genes_for_model_count": len(results.get("genes_for_model", [])),
-    }
+    baseline_risk = float(twin.calculate_risk(model, patient_tensor).item())
+
+    single_results = []
+
+    for drug in drugs:
+        targets = twin._resolve_targets(drug)
+        valid_targets = [g for g in targets if g in twin.idx]
+
+        if not valid_targets:
+            single_results.append({
+                "drug_name": drug,
+                "status": "no valid targets found",
+                "valid_targets": [],
+            })
+            continue
+
+        after = twin.simulate_single(
+            patient=patient_tensor,
+            valid_targets=valid_targets,
+            alpha=config.sim_base_alpha,
+        )
+
+        after_risk = float(twin.calculate_risk(model, after).item())
+
+        risk_reduction_pct = (
+            ((baseline_risk - after_risk) / baseline_risk) * 100
+            if baseline_risk != 0 else 0
+        )
+
+        single_results.append({
+            "drug_name": drug,
+            "baseline_risk": baseline_risk,
+            "after_risk": after_risk,
+            "risk_reduction_pct": risk_reduction_pct,
+            "valid_targets": valid_targets,
+            "pathway_hits": twin.pathway_hits(valid_targets),
+            "gene_changes": clean_for_json([
+                twin.gene_change(g, patient_tensor, after)
+                for g in valid_targets[:10]
+            ]),
+        })
+
+    pair_results = []
+
+    for i in range(len(drugs)):
+        for j in range(i + 1, len(drugs)):
+            drug_a = drugs[i]
+            drug_b = drugs[j]
+
+            targets_a = [g for g in twin._resolve_targets(drug_a) if g in twin.idx]
+            targets_b = [g for g in twin._resolve_targets(drug_b) if g in twin.idx]
+
+            if not targets_a and not targets_b:
+                continue
+
+            after = twin.simulate_pair(
+                patient=patient_tensor,
+                valid_targets_a=targets_a,
+                valid_targets_b=targets_b,
+                alpha_a=config.sim_base_alpha,
+                alpha_b=config.sim_base_alpha,
+            )
+
+            after_risk = float(twin.calculate_risk(model, after).item())
+
+            risk_reduction_pct = (
+                ((baseline_risk - after_risk) / baseline_risk) * 100
+                if baseline_risk != 0 else 0
+            )
+
+            combined_targets = sorted(set(targets_a + targets_b))
+
+            pair_results.append({
+                "drug_pair": [drug_a, drug_b],
+                "baseline_risk": baseline_risk,
+                "after_risk": after_risk,
+                "risk_reduction_pct": risk_reduction_pct,
+                "valid_targets": combined_targets,
+                "pathway_hits": twin.pathway_hits(combined_targets),
+                "gene_changes": clean_for_json([
+                    twin.gene_change(g, patient_tensor, after)
+                    for g in combined_targets[:10]
+                ]),
+            })
+
+    all_options = []
+
+    for item in single_results:
+        if "risk_reduction_pct" in item:
+            all_options.append({
+                "type": "single",
+                "drug": item["drug_name"],
+                "risk_reduction_pct": item["risk_reduction_pct"],
+            })
+
+    for item in pair_results:
+        all_options.append({
+            "type": "combination",
+            "drug_pair": item["drug_pair"],
+            "risk_reduction_pct": item["risk_reduction_pct"],
+        })
+
+    best_recommendation = (
+        max(all_options, key=lambda x: x["risk_reduction_pct"])
+        if all_options else None
+    )
+
+    return clean_for_json({
+        "input_drugs": drugs,
+        "baseline_risk": baseline_risk,
+        "single_results": single_results,
+        "pair_results": pair_results,
+        "best_recommendation": best_recommendation,
+    })

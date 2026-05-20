@@ -67,7 +67,7 @@ from .serializers import GeneReportSerializer
 #from api.twin_runner import run_full_twin_pipeline_for_user
 
 #from runner import run_full_twin_pipeline_for_user
-from api.twin_runner import run_full_twin_pipeline_for_user
+from api.twin_runner import run_twin_runtime_for_user
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
 
@@ -219,7 +219,7 @@ def run_twin(request):
         )
 
     try:
-        result = run_full_twin_pipeline_for_user(
+        result = run_twin_runtime_for_user(
             user=request.user,
             drugs=drugs
         )
