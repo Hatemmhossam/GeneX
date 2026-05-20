@@ -51,6 +51,9 @@ urlpatterns = [
     path('predict_xai/', ml_api.views.predict_xai, name='predict_xai'),
     path("save-report/",save_report),
     path('patient/assigned-doctors/', views.get_assigned_doctors, name='get_assigned_doctors'),
+    path("twin/upload-gene-file/", views.upload_gene_file, name="twin-upload-gene-file"),
+    path("twin/run/", views.run_twin, name="run-twin"),
+    path("twin/history/", views.get_twin_history, name="twin-history"),
 ]
 
 

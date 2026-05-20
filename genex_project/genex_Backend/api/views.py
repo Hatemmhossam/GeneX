@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q
 from rest_framework import status, views, viewsets, generics 
 from rest_framework.response import Response
+import traceback
 
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -33,6 +34,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 # ✅ IMPORTS: Ensure all your models and serializers are here
 from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
 
+from .twin_runner import run_twin_runtime_for_user, clean_for_json
 from django.db import connection
 from .models import DrugInteraction
 import joblib
@@ -66,7 +68,7 @@ from .serializers import GeneReportSerializer
 #from api.twin_runner import run_full_twin_pipeline_for_user
 
 #from runner import run_full_twin_pipeline_for_user
-from .twin_runner import run_twin_runtime_for_user
+#from .twin_runner import run_twin_runtime_for_user
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
 
@@ -218,10 +220,24 @@ def run_twin(request):
         )
 
     try:
+        print("🧬 TWIN RUN STARTED")
+        print("👤 USER:", request.user)
+        print("💊 DRUGS:", drugs)
+
+        if not getattr(request.user, "current_gene_file", None):
+            return Response(
+                {"error": "No active gene expression file found for this user"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        print("📁 CURRENT GENE FILE:", request.user.current_gene_file.file.path)
+
         result = run_twin_runtime_for_user(
             user=request.user,
             drugs=drugs
         )
+        result = clean_for_json(result)
+        print("✅ TWIN RESULT CREATED")
 
         saved_run = TwinRun.objects.create(
             user=request.user,
@@ -230,17 +246,21 @@ def run_twin(request):
         )
 
         return Response({
-        "message": "Full Digital Twin pipeline completed successfully",
-        "run_id": saved_run.id,
-
-        "baseline_risk": result.get("baseline_risk"),
-        "single_results": result.get("single_results", []),
-        "pair_results": result.get("pair_results", []),
-        "fusion_results": result.get("fusion_results", []),  # IMPORTANT
-        "best_recommendation": result.get("best_recommendation")
-    }, status=status.HTTP_200_OK)
+            "message": "Full Digital Twin pipeline completed successfully",
+            "run_id": saved_run.id,
+            "baseline_risk": result.get("baseline_risk"),
+            "single_results": result.get("single_results", []),
+            "pair_results": result.get("pair_results", []),
+            "fusion_results": result.get("fusion_results", []),
+            "best_recommendation": result.get("best_recommendation"),
+        }, status=status.HTTP_200_OK)
 
     except Exception as e:
+        import traceback
+
+        print("🔥 TWIN RUN ERROR:")
+        print(traceback.format_exc())
+
         return Response(
             {"error": f"Full Digital Twin pipeline failed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -303,7 +323,7 @@ def get_twin_history(request):
         })
 
     return Response(data, status=status.HTTP_200_OK)
-# --- Medicine Views ---
+# --- Medicine Views ---f
 
 class MedicineViewSet(viewsets.ModelViewSet):
     """Handles List, Create, and Delete for Patient Medicines."""

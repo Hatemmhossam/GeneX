@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 import joblib
 import requests
+import math
 
 from api.digital_twin import (
     DeepDenoisingAE,
@@ -38,17 +39,53 @@ def load_twin_artifacts():
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Missing artifact: {model_path}")
 
+    # =========================
+    # HEALTHY TENSOR
+    # =========================
     if os.path.exists(healthy_tensor_path):
-        healthy_tensor = torch.load(healthy_tensor_path, map_location="cpu")
-    else:
-        healthy_tensor = torch.zeros((1, len(gene_cols)))
+        try:
+            healthy_tensor = torch.load(
+                healthy_tensor_path,
+                map_location="cpu",
+                weights_only=False
+            )
 
+            if not isinstance(healthy_tensor, torch.Tensor):
+                healthy_tensor = torch.tensor(healthy_tensor, dtype=torch.float32)
+
+            if healthy_tensor.ndim == 1:
+                healthy_tensor = healthy_tensor.reshape(1, -1)
+
+            if healthy_tensor.shape[1] != len(gene_cols):
+                print("⚠️ healthy_tensor shape does not match gene_cols")
+                print("⚠️ Using zero healthy tensor temporarily")
+                healthy_tensor = torch.zeros((1, len(gene_cols)), dtype=torch.float32)
+
+            print("✅ healthy_tensor loaded successfully")
+
+        except Exception as e:
+            print("⚠️ Failed to load healthy_tensor.pt:", str(e))
+            print("⚠️ Using zero healthy tensor temporarily")
+            healthy_tensor = torch.zeros((1, len(gene_cols)), dtype=torch.float32)
+
+    else:
+        print("⚠️ healthy_tensor.pt not found, using zero healthy tensor temporarily")
+        healthy_tensor = torch.zeros((1, len(gene_cols)), dtype=torch.float32)
+
+    # =========================
+    # MODEL
+    # =========================
     model = DeepDenoisingAE(
         input_dim=len(gene_cols),
         latent_dim=64
     )
 
-    state = torch.load(model_path, map_location="cpu")
+    state = torch.load(
+        model_path,
+        map_location="cpu",
+        weights_only=False
+    )
+
     model.load_state_dict(state)
     model.eval()
 
@@ -64,34 +101,66 @@ def load_twin_artifacts():
 def load_patient_gene_file(file_path):
     try:
         df = pd.read_csv(file_path, sep="\t")
+        if df.shape[1] <= 1:
+            df = pd.read_csv(file_path)
     except Exception:
         df = pd.read_csv(file_path)
 
     df.columns = [str(c).strip() for c in df.columns]
 
+    print("🧬 Uploaded gene file columns:")
+    print(df.columns.tolist()[:30])
+    print("🧬 Uploaded gene file shape:", df.shape)
+
     gene_col = None
-    for col in ["GeneSymbol", "Hugo_Symbol", "gene", "GENE", "symbol"]:
+    for col in [
+        "GeneSymbol",
+        "Hugo_Symbol",
+        "gene",
+        "GENE",
+        "symbol",
+        "gene_name",
+        "GeneName",
+        "gene_symbol",
+        "Gene_Symbol",
+    ]:
         if col in df.columns:
             gene_col = col
             break
 
-    if gene_col is None:
-        raise ValueError("Could not find gene symbol column in patient gene file.")
+    if gene_col is not None:
+        expr_cols = [c for c in df.columns if c != gene_col]
 
-    expr_cols = [c for c in df.columns if c != gene_col]
+        if not expr_cols:
+            raise ValueError("No expression columns found in patient gene file.")
 
-    if not expr_cols:
-        raise ValueError("No expression columns found in patient gene file.")
+        df[gene_col] = df[gene_col].astype(str).str.strip().str.upper()
+        df = df.drop_duplicates(subset=[gene_col])
 
-    df[gene_col] = df[gene_col].astype(str).str.strip().str.upper()
-    df = df.drop_duplicates(subset=[gene_col])
+        mat = df.set_index(gene_col)[expr_cols].apply(
+            pd.to_numeric,
+            errors="coerce"
+        )
 
-    mat = df.set_index(gene_col)[expr_cols].apply(pd.to_numeric, errors="coerce")
+        first_sample = mat.columns[0]
+        patient_vec = mat[first_sample]
 
-    first_sample = mat.columns[0]
-    patient_vec = mat[first_sample]
+        print("✅ Detected LONG gene file format")
+        return patient_vec
 
-    return patient_vec
+    if df.empty:
+        raise ValueError("Uploaded patient gene file is empty.")
+
+    numeric_df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
+
+    first_row = numeric_df.iloc[0]
+    first_row.index = [
+        str(col).strip().upper()
+        for col in first_row.index
+    ]
+
+    print("✅ Detected WIDE gene file format")
+    return first_row
 
 
 def build_patient_tensor(patient_vec, gene_cols, twin_scaler):
@@ -275,14 +344,20 @@ def resolve_targets_with_dgidb(twin, drug_name, cache=None):
 
 
 def clean_for_json(value):
+    if value is None:
+        return None
+
     if isinstance(value, pd.DataFrame):
-        return value.replace({np.nan: None}).to_dict(orient="records")
+        return clean_for_json(value.replace({np.nan: None}).to_dict(orient="records"))
 
     if isinstance(value, pd.Series):
-        return value.replace({np.nan: None}).to_dict()
+        return clean_for_json(value.replace({np.nan: None}).to_dict())
 
     if isinstance(value, dict):
-        return {str(k): clean_for_json(v) for k, v in value.items()}
+        return {
+            str(k): clean_for_json(v)
+            for k, v in value.items()
+        }
 
     if isinstance(value, list):
         return [clean_for_json(v) for v in value]
@@ -300,6 +375,14 @@ def clean_for_json(value):
         if np.isnan(value):
             return None
         return float(value)
+
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return value
+
+    if pd.isna(value) and not isinstance(value, (str, bool)):
+        return None
 
     return value
 

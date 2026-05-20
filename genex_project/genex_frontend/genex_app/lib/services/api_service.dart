@@ -8,10 +8,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import 'dart:typed_data';
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   final Dio _dio;
-
+ final String baseUrl = "http://127.0.0.1:8000"; 
   ApiService({Dio? dio})
     : _dio =
           dio ??
@@ -310,52 +315,34 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> runTwinSimulation({
-    required List<String> drugs,
-  }) async {
-    await _refreshAuthHeader();
+Future<Map<String, dynamic>> runTwinSimulation({
+  required List<String> drugs,
+}) async {
+  final token = await getToken();
 
-    try {
-      final response = await _dio
-          .post(
-            'twin/run/',
-            data: {
-              "drugs": drugs,
-            },
-            options: Options(contentType: Headers.jsonContentType),
-          )
-          .timeout(const Duration(seconds: 120));
-
-      if (response.data == null) {
-        throw Exception("Empty response from server.");
-      }
-
-      if (response.data is Map<String, dynamic>) {
-        return response.data as Map<String, dynamic>;
-      }
-
-      if (response.data is Map) {
-        return Map<String, dynamic>.from(response.data as Map);
-      }
-
-      throw Exception(
-        "Unexpected response format: ${response.data.runtimeType}",
-      );
-    } on DioException catch (e) {
-      debugPrint("=== DioException in runTwinSimulation ===");
-      debugPrint("Status code: ${e.response?.statusCode}");
-      debugPrint("Response data: ${e.response?.data}");
-      debugPrint("Request URI: ${e.requestOptions.uri}");
-
-      throw Exception(
-        e.response?.data?["error"]?.toString() ??
-            e.response?.data?["message"]?.toString() ??
-            "Twin simulation failed.",
-      );
-    } catch (e) {
-      throw Exception("Unexpected error: $e");
-    }
+  if (token == null || token.isEmpty) {
+    throw Exception("No auth token found. Please login again.");
   }
+
+  final response = await http.post(
+    Uri.parse("$baseUrl/api/twin/run/"),
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token",
+    },
+    body: jsonEncode({
+      "drugs": drugs,
+    }),
+  );
+
+  final data = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(data["error"] ?? "Twin simulation failed");
+  }
+
+  return Map<String, dynamic>.from(data);
+}
 
   // Future<void> saveTwinReport({
   //   required Map<String, dynamic> result,
@@ -415,35 +402,51 @@ class ApiService {
       rethrow;
     }
   }
-  Future<Map<String, dynamic>> uploadGeneFile({
+
+Future<String?> getToken() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString("token");
+}
+
+Future<void> uploadGeneFile({
   required PlatformFile file,
 }) async {
-  await _refreshAuthHeader();
+  final uri = Uri.parse("$baseUrl/api/twin/upload-gene-file/");
+  final request = http.MultipartRequest("POST", uri);
 
-  MultipartFile multipartFile;
+  final token = await getToken();
 
-  if (kIsWeb) {
-    multipartFile = MultipartFile.fromBytes(
-      file.bytes!,
-      filename: file.name,
-    );
-  } else {
-    multipartFile = await MultipartFile.fromFile(
-      file.path!,
-      filename: file.name,
-    );
+  if (token == null || token.isEmpty) {
+    throw Exception("No auth token found. Please login again.");
   }
 
-  final formData = FormData.fromMap({
-    "file": multipartFile,
-  });
+  request.headers["Authorization"] = "Bearer $token";
 
-  final response = await _dio.post(
-    'gene-upload/',
-    data: formData,
-    options: Options(contentType: 'multipart/form-data'),
-  );
+  if (file.bytes != null) {
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        "file",
+        file.bytes!,
+        filename: file.name,
+      ),
+    );
+  } else if (file.path != null) {
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        "file",
+        file.path!,
+        filename: file.name,
+      ),
+    );
+  } else {
+    throw Exception("No file data found");
+  }
 
-  return Map<String, dynamic>.from(response.data);
+  final streamedResponse = await request.send();
+  final response = await http.Response.fromStream(streamedResponse);
+
+  if (response.statusCode != 200 && response.statusCode != 201) {
+    throw Exception("Gene file upload failed: ${response.body}");
+  }
 }
 }
