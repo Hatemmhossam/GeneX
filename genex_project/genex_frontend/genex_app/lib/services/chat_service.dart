@@ -126,9 +126,10 @@ Future<ChatMessageModel> uploadAttachment({
   final response = await request.send();
   final responseBody = await response.stream.bytesToString();
 
-  if (response.statusCode != 200) {
-    throw Exception('Upload failed: $responseBody');
-  }
+if (response.statusCode != 200 &&
+    response.statusCode != 201) {
+  throw Exception('Upload failed: $responseBody');
+}
 
   return ChatMessageModel.fromJson(jsonDecode(responseBody));
 }

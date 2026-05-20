@@ -115,7 +115,7 @@ class ApiService {
     }
   }
 
-  /// ✅ Restore this method:
+
   Future<List<UserModel>> searchUsersByUsername(
     String username, {
     String? role,

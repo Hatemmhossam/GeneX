@@ -2,13 +2,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
 
-// ✅ MODEL: Uses String for status now (No Enum)
+import '../../widgets/premium_card.dart';
+
 class DoctorRequest {
   final int id;
   final String doctorName;
   final String date;
-  String status; // 'pending', 'accepted', 'rejected'
+  String status;
 
   DoctorRequest({
     required this.id,
@@ -44,93 +46,90 @@ class _DoctorRequestsScreenState extends State<DoctorRequestsScreen> {
     _fetchRequests();
   }
 
-  // --- API CALLS ---
   Future<void> _fetchRequests() async {
-    debugPrint("🔵 STARTING: _fetchRequests called");
-    
     final prefs = await SharedPreferences.getInstance();
-    
-    // ✅ FIX 1: Use 'token', not 'access' (This was the main bug!)
-    final token = prefs.getString('token'); 
-
-    debugPrint("🔑 Token found: ${token != null ? 'YES' : 'NO (NULL)'}");
+    final token = prefs.getString('token');
 
     if (token == null) {
-      debugPrint("❌ ABORTING: No token found. User might not be logged in.");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    // ✅ FIX 2: Ensure correct URL for Web/Chrome
-    final url = Uri.parse('http://127.0.0.1:8000/api/patient/requests/'); 
+    final url = Uri.parse('http://127.0.0.1:8000/api/patient/requests/');
 
     try {
-      debugPrint("🚀 SENDING REQUEST TO: $url");
-      
       final response = await http.get(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token', // JWT Standard
+          'Authorization': 'Bearer $token',
         },
       );
 
-      debugPrint("📡 SERVER RESPONSE CODE: ${response.statusCode}");
-      
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
-        debugPrint("📦 DATA RECEIVED: ${response.body}");
         final List<dynamic> data = jsonDecode(response.body);
+
         setState(() {
           requests = data.map((json) => DoctorRequest.fromJson(json)).toList();
           _isLoading = false;
         });
       } else {
-        debugPrint("⚠️ SERVER ERROR: ${response.body}");
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      // ✅ This is where the error was hiding!
-      debugPrint("❌ CLIENT CONNECTION ERROR: $e");
-      setState(() => _isLoading = false);
+      debugPrint("Error fetching requests: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _updateStatus(int requestId, String action, int index) async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // 1. FIX KEY: Use 'token', not 'access'
-    final token = prefs.getString('token'); 
+    final loc = AppLocalizations.of(context)!;
 
-    // 2. FIX URL: Ensure it points to localhost (Chrome)
-    final url = Uri.parse('http://127.0.0.1:8000/api/patient/requests/$requestId/update/');
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse(
+      'http://127.0.0.1:8000/api/patient/requests/$requestId/update/',
+    );
 
     try {
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
-          // 3. FIX HEADER: Must be 'Bearer', not 'Token'
-          'Authorization': 'Bearer $token' 
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode({'action': action}),
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         setState(() {
-          // Update the list visually immediately
-          requests[index].status = (action == 'accept') ? 'accepted' : 'rejected';
+          requests[index].status = action == 'accept' ? 'accepted' : 'rejected';
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Request ${action}ed successfully!"),
-            backgroundColor: action == 'accept' ? Colors.green : Colors.red,
+            content: Text(
+              action == 'accept'
+                  ? loc.requestAcceptedSuccessfully
+                  : loc.requestRejectedSuccessfully,
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: action == 'accept'
+                ? Theme.of(context).colorScheme.primary
+                : Colors.redAccent,
           ),
         );
       } else {
-        debugPrint("Server Error: ${response.body}");
         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text("Failed to update status. Check console.")),
+          SnackBar(
+            content: Text(loc.failedToUpdateStatus),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } catch (e) {
@@ -138,123 +137,293 @@ class _DoctorRequestsScreenState extends State<DoctorRequestsScreen> {
     }
   }
 
-  // --- UI HELPERS (Now checking Strings) ---
-  String _statusText(String s) {
-    if (s == 'pending') return "Pending";
-    if (s == 'accepted') return "Accepted";
-    if (s == 'rejected') return "Rejected";
-    return s; // Fallback
+  String _statusText(String s, BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
+    if (s == 'pending') return loc.pending;
+    if (s == 'accepted') return loc.accepted;
+    if (s == 'rejected') return loc.rejected;
+
+    return s;
   }
 
-  Color _statusColor(String s) {
+  Color _statusColor(String s, ThemeData theme) {
     if (s == 'pending') return Colors.orange;
-    if (s == 'accepted') return Colors.green;
-    if (s == 'rejected') return Colors.red;
+    if (s == 'accepted') return theme.colorScheme.primary;
+    if (s == 'rejected') return Colors.redAccent;
+
     return Colors.grey;
+  }
+
+  Widget _buildHeroCard() {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0F172A),
+            theme.colorScheme.primary,
+            const Color(0xFF1D4ED8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.26),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.16),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.22)),
+            ),
+            child: const Icon(
+              Icons.medical_services_rounded,
+              color: Colors.white,
+              size: 36,
+            ),
+          ),
+          const SizedBox(width: 22),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  loc.doctorRequests,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  loc.accessRequests,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.82),
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(DoctorRequest request) {
+    final theme = Theme.of(context);
+    final color = _statusColor(request.status, theme);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.28)),
+      ),
+      child: Text(
+        _statusText(request.status, context),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequestCard(DoctorRequest request, int index) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+    final isPending = request.status == 'pending';
+
+    return PremiumCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                child: Icon(
+                  Icons.person_rounded,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.doctorName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      request.date,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.58),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildStatusChip(request),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isPending
+                      ? () => _updateStatus(request.id, 'accept', index)
+                      : null,
+                  icon: const Icon(Icons.check_rounded),
+                  label: Text(loc.accept),
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        theme.colorScheme.onSurface.withOpacity(0.08),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: isPending
+                      ? () => _updateStatus(request.id, 'reject', index)
+                      : null,
+                  icon: const Icon(Icons.close_rounded),
+                  label: Text(loc.reject),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: BorderSide(
+                      color: Colors.redAccent.withOpacity(0.35),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return PremiumCard(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        children: [
+          Icon(
+            Icons.inbox_rounded,
+            size: 62,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            loc.noRequestsFound,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Access Requests")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Doctor Requests",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  )
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        elevation: 0,
+        title: Text(
+          loc.accessRequests,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+      body: RefreshIndicator(
+        color: theme.colorScheme.primary,
+        onRefresh: _fetchRequests,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeroCard(),
+                  const SizedBox(height: 24),
+                  requests.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: requests.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 14),
+                          itemBuilder: (context, index) {
+                            return _buildRequestCard(requests[index], index);
+                          },
+                        ),
                 ],
               ),
-              child: requests.isEmpty 
-              ? const Padding(
-                  padding: EdgeInsets.all(20), 
-                  child: Text("No requests found.")
-                )
-              : SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text("Doctor Name")),
-                    DataColumn(label: Text("Date")),
-                    DataColumn(label: Text("Status")),
-                    DataColumn(label: Text("Action")),
-                  ],
-                  rows: List.generate(requests.length, (index) {
-                    final r = requests[index];
-                    final isPending = r.status == 'pending'; // Check string directly
-
-                    return DataRow(
-                      cells: [
-                        DataCell(Text(r.doctorName)),
-                        DataCell(Text(r.date)),
-                        // Status Badge
-                        DataCell(
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: _statusColor(r.status).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: _statusColor(r.status).withOpacity(0.35)),
-                            ),
-                            child: Text(
-                              _statusText(r.status),
-                              style: TextStyle(
-                                color: _statusColor(r.status),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Action Buttons
-                        DataCell(
-                          Row(
-                            children: [
-                              ElevatedButton(
-                                onPressed: isPending ? () => _updateStatus(r.id, 'accept', index) : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.teal,
-                                  disabledBackgroundColor: Colors.grey[200],
-                                ),
-                                child: const Text("Accept", style: TextStyle(color: Colors.white)),
-                              ),
-                              const SizedBox(width: 10),
-                              ElevatedButton(
-                                onPressed: isPending ? () => _updateStatus(r.id, 'reject', index) : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                  disabledBackgroundColor: Colors.grey[200],
-                                ),
-                                child: const Text("Reject", style: TextStyle(color: Colors.white)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                ),
-              ),
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -10,6 +10,8 @@ import 'auth_viewmodel.dart';
 import 'auth_state.dart';
 import 'user_search_viewmodel.dart';
 import 'user_search_state.dart';
+import 'package:flutter/material.dart';
+
 
 final dashboardIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -98,4 +100,11 @@ final geneReportsProvider = FutureProvider<List<dynamic>>((ref) async {
 
 final chatServiceProvider = Provider<ChatService>((ref) {
   return ChatService();
+});
+
+final themeProvider = StateProvider<ThemeMode>((ref) {
+  return ThemeMode.system;
+});
+final localeProvider = StateProvider<Locale?>((ref) {
+  return null;
 });
