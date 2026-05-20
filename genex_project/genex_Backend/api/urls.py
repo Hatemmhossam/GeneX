@@ -29,6 +29,7 @@ urlpatterns = [
 
     path('run-twin/', run_twin),
 
+    path("twin/run/", views.run_twin, name="run-twin"),
 
     path('search-patients/', PatientSearchView.as_view(), name='search-patients'),
     path('send-request/', send_patient_request, name='send-request'),
@@ -44,7 +45,7 @@ urlpatterns = [
 
     path('doctor/dashboard-stats/', views.doctor_dashboard_stats),
     path('doctor/pending-patients/', views.doctor_pending_patients),
-
+    
     path('get-user-risk/<int:user_id>/', views.get_user_risk, name='get_user_risk'),
     path("evaluate/", evaluate),
     path('predict_xai/', ml_api.views.predict_xai, name='predict_xai'),

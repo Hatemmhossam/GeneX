@@ -63,8 +63,11 @@ from .serializers import (
 )
 from .serializers import GeneReportSerializer
 
+#from api.services.digital_twin.runner import run_full_twin_pipeline_for_user
+#from api.twin_runner import run_full_twin_pipeline_for_user
 
-
+#from runner import run_full_twin_pipeline_for_user
+from api.twin_runner import run_full_twin_pipeline_for_user
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
 
@@ -205,6 +208,7 @@ def upload_gene_file(request):
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+
 def run_twin(request):
     drugs = request.data.get('drugs', [])
 
@@ -214,17 +218,9 @@ def run_twin(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if not request.user.current_gene_file:
-        return Response(
-            {"error": "No active gene expression file found for this user"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    gene_file_path = request.user.current_gene_file.file.path
-
     try:
-        result = run_twin_simulation(
-            gene_file_path=gene_file_path,
+        result = run_full_twin_pipeline_for_user(
+            user=request.user,
             drugs=drugs
         )
 
@@ -235,16 +231,56 @@ def run_twin(request):
         )
 
         return Response({
-            "message": "Twin simulation completed successfully",
+            "message": "Full Digital Twin pipeline completed successfully",
             "run_id": saved_run.id,
             "result": result
         }, status=status.HTTP_200_OK)
 
     except Exception as e:
         return Response(
-            {"error": f"Twin simulation failed: {str(e)}"},
+            {"error": f"Full Digital Twin pipeline failed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+# def run_twin(request):
+#     drugs = request.data.get('drugs', [])
+
+#     if not drugs or not isinstance(drugs, list):
+#         return Response(
+#             {"error": "drugs must be a non-empty list"},
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     if not request.user.current_gene_file:
+#         return Response(
+#             {"error": "No active gene expression file found for this user"},
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     gene_file_path = request.user.current_gene_file.file.path
+
+#     try:
+#         result = run_twin_simulation(
+#             gene_file_path=gene_file_path,
+#             drugs=drugs
+#         )
+
+#         saved_run = TwinRun.objects.create(
+#             user=request.user,
+#             selected_drugs=drugs,
+#             results=result
+#         )
+
+#         return Response({
+#             "message": "Twin simulation completed successfully",
+#             "run_id": saved_run.id,
+#             "result": result
+#         }, status=status.HTTP_200_OK)
+
+#     except Exception as e:
+#         return Response(
+#             {"error": f"Twin simulation failed: {str(e)}"},
+#             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#         )
 
 #---History API View---
 @api_view(['GET'])
