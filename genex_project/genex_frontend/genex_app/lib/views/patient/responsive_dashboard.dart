@@ -1,6 +1,11 @@
+// lib/views/patient/responsive_dashboard.dart
+
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../viewmodels/providers.dart';
+import '../../widgets/premium_card.dart';
 import 'profile_view.dart';
 import 'upload_screen.dart';
 import 'med_history_screen.dart';
@@ -11,6 +16,7 @@ import 'symptoms_screen.dart';
 import 'about_system_screen.dart';
 import 'dna_model_visualization.dart';
 import 'my_doctors_screen.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
 
 class ResponsiveDashboard extends ConsumerStatefulWidget {
   const ResponsiveDashboard({super.key});
@@ -23,36 +29,48 @@ class ResponsiveDashboard extends ConsumerStatefulWidget {
 class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    const DashboardOverview(),
-    const ProfileScreen(),
-    const MedHistoryScreen(),
-    const SymptomReportScreen(),
-    const UploadScreen(),
-    const TwinSimulationScreen(),
-    const DoctorRequestsScreen(),
-    const MyDoctorsScreen(),
-    const ReportsScreen(),
-    const AboutSystemScreen(),
+  final List<Widget> _pages = const [
+    DashboardOverview(),
+    ProfileScreen(),
+    MedHistoryScreen(),
+    SymptomReportScreen(),
+    UploadScreen(),
+    TwinSimulationScreen(),
+    DoctorRequestsScreen(),
+    MyDoctorsScreen(),
+    ReportsScreen(),
+    AboutSystemScreen(),
   ];
 
-  void _handleLogout() async {
-    bool? confirm = await showDialog(
+  Future<void> _handleLogout() async {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Logout'),
-        content: const Text(
-          'Are you sure you want to log out of the GeneX portal?',
+        backgroundColor: theme.colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
         ),
+        title: Text(loc.confirmLogout),
+        content: Text(loc.logoutConfirmationMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(loc.cancel),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.logout_rounded),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            label: Text(loc.logout),
           ),
         ],
       ),
@@ -60,150 +78,256 @@ class _ResponsiveDashboardState extends ConsumerState<ResponsiveDashboard> {
 
     if (confirm == true) {
       await ref.read(authViewModelProvider.notifier).logout();
+
       if (mounted) {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/signin', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/signin',
+          (route) => false,
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    double width = MediaQuery.of(context).size.width;
-    bool isDesktop = width > 900;
+    final theme = Theme.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width > 900;
 
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Row(
         children: [
           if (isDesktop)
-            NavigationRail(
-              extended: width > 1200,
-              backgroundColor: const Color(0xFFF8FAFC),
-              selectedIconTheme: const IconThemeData(color: Colors.teal),
-              unselectedIconTheme: const IconThemeData(color: Colors.grey),
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.dashboard),
-                  label: Text('Overview'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.person),
-                  label: Text('Profile'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.medication),
-                  label: Text('History'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.sick),
-                  label: Text('Symptoms'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.upload_file),
-                  label: Text('Upload'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.biotech),
-                  label: Text('Simulation'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.person_search),
-                  label: Text('Doctor Requests'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.medical_services_outlined),
-                  label: Text('My Doctors'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.folder_shared),
-                  label: Text('Reports'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.info_outline),
-                  label: Text('About'),
-                ),
-              ],
+            _DesktopRail(
               selectedIndex: _selectedIndex,
-              onDestinationSelected: (int index) {
+              onSelected: (index) {
                 setState(() => _selectedIndex = index);
               },
             ),
-
           Expanded(
-            child: Container(
-              color: Colors.white,
-              child: Column(
-                children: [
-                  _buildHeader(context),
-                  Expanded(
+            child: Column(
+              children: [
+                _DashboardHeader(onLogout: _handleLogout),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
                     child: _pages[_selectedIndex.clamp(0, _pages.length - 1)],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
       ),
-      bottomNavigationBar: !isDesktop
-          ? BottomNavigationBar(
-              currentIndex: _selectedIndex > 4 ? 0 : _selectedIndex,
-              type: BottomNavigationBarType.fixed,
-              onTap: (index) => setState(() => _selectedIndex = index),
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.dashboard),
-                  label: 'Home',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label: 'Profile',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.medication),
-                  label: 'Meds',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.sick),
-                  label: 'Symptoms',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.medical_services_outlined),
-                  label: 'Doctors',
-                ),
-              ],
-            )
-          : null,
+      bottomNavigationBar: isDesktop
+          ? null
+          : _MobileBottomBar(
+              selectedIndex: _selectedIndex > 4 ? 0 : _selectedIndex,
+              onSelected: (index) {
+                setState(() => _selectedIndex = index);
+              },
+            ),
+    );
+  }
+}
+
+class _DesktopRail extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _DesktopRail({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+    final width = MediaQuery.of(context).size.width;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          right: BorderSide(
+            color: theme.dividerColor.withOpacity(0.12),
+          ),
+        ),
+      ),
+      child: NavigationRail(
+        extended: width > 1200,
+        backgroundColor: Colors.transparent,
+        selectedIndex: selectedIndex,
+        onDestinationSelected: onSelected,
+        selectedIconTheme: IconThemeData(
+          color: theme.colorScheme.primary,
+          size: 26,
+        ),
+        unselectedIconTheme: IconThemeData(
+          color: theme.colorScheme.onSurface.withOpacity(0.50),
+        ),
+        selectedLabelTextStyle: TextStyle(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w800,
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.60),
+          fontWeight: FontWeight.w600,
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.only(top: 18, bottom: 24),
+          child: CircleAvatar(
+            radius: 26,
+            backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+            child: Icon(
+              Icons.biotech_rounded,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+        destinations: [
+          _railItem(Icons.dashboard_rounded, loc.overview),
+          _railItem(Icons.person_rounded, loc.profile),
+          _railItem(Icons.medication_rounded, loc.history),
+          _railItem(Icons.sick_rounded, loc.symptoms),
+          _railItem(Icons.upload_file_rounded, loc.upload),
+          _railItem(Icons.biotech_rounded, loc.simulation),
+          _railItem(Icons.person_search_rounded, loc.doctorRequests),
+          _railItem(Icons.medical_services_outlined, loc.myDoctors),
+          _railItem(Icons.folder_shared_rounded, loc.reports),
+          _railItem(Icons.info_outline_rounded, loc.about),
+        ],
+      ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  NavigationRailDestination _railItem(IconData icon, String label) {
+    return NavigationRailDestination(
+      icon: Icon(icon),
+      selectedIcon: Icon(icon),
+      label: Text(label),
+    );
+  }
+}
+
+class _MobileBottomBar extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _MobileBottomBar({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.12),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(
+              theme.brightness == Brightness.dark ? 0.28 : 0.08,
+            ),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          selectedItemColor: theme.colorScheme.primary,
+          unselectedItemColor: theme.colorScheme.onSurface.withOpacity(0.50),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+          onTap: onSelected,
+          items: [
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.dashboard_rounded),
+              label: loc.home,
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.person_rounded),
+              label: loc.profile,
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.medication_rounded),
+              label: loc.meds,
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.sick_rounded),
+              label: loc.symptoms,
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.medical_services_outlined),
+              label: loc.doctors,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardHeader extends StatelessWidget {
+  final VoidCallback onLogout;
+
+  const _DashboardHeader({
+    required this.onLogout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.dividerColor.withOpacity(0.12),
+          ),
+        ),
       ),
       child: Row(
         children: [
-          const Text(
-            "GeneX Medical Portal",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.blueGrey,
+          Text(
+            loc.geneXMedicalPortal,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.redAccent),
-            tooltip: 'Logout',
-            onPressed: _handleLogout,
+            tooltip: loc.logout,
+            onPressed: onLogout,
+            icon: const Icon(Icons.logout_rounded),
+            color: Colors.redAccent,
           ),
           const SizedBox(width: 12),
           CircleAvatar(
-            backgroundColor: Colors.teal.shade50,
-            child: const Icon(Icons.person, color: Colors.teal),
+            backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+            child: Icon(
+              Icons.person_rounded,
+              color: theme.colorScheme.primary,
+            ),
           ),
         ],
       ),
@@ -216,6 +340,9 @@ class DashboardOverview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
     final medsAsync = ref.watch(medicinesProvider);
     final reportsAsync = ref.watch(geneReportsProvider);
 
@@ -224,132 +351,152 @@ class DashboardOverview extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "System Overview",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          _HeroDashboardCard(loc: loc),
+          const SizedBox(height: 24),
+          Text(
+            loc.systemOverview,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
           ),
-          const SizedBox(height: 20),
-          GridView.count(
-            crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
-            shrinkWrap: true,
-            crossAxisSpacing: 20,
-            mainAxisSpacing: 20,
-            childAspectRatio: 1.5,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              reportsAsync.when(
-                data: (reports) {
-                  final latestReport = reports.isNotEmpty ? reports.first : null;
-                  final String status =
-                      latestReport != null ? latestReport['label'] : "No Data";
-                  final Color statusColor =
-                      status.contains("High") ? Colors.red : Colors.green;
+          const SizedBox(height: 18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = constraints.maxWidth > 1200
+                  ? 4
+                  : constraints.maxWidth > 760
+                      ? 2
+                      : 1;
 
-                  return InkWell(
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                shrinkWrap: true,
+                crossAxisSpacing: 18,
+                mainAxisSpacing: 18,
+                childAspectRatio: crossAxisCount == 1 ? 2.4 : 1.55,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  reportsAsync.when(
+                    data: (reports) {
+                      final latestReport =
+                          reports.isNotEmpty ? reports.first : null;
+
+                      final status = latestReport != null
+                          ? latestReport['label'].toString()
+                          : loc.noData;
+
+                      final color = status.toLowerCase().contains('high')
+                          ? Colors.redAccent
+                          : Colors.green;
+
+                      return _DashboardMetricCard(
+                        title: loc.vitalsStatus,
+                        value: status,
+                        icon: latestReport != null
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: color,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const DnaModelVisualizationScreen(),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    loading: () => _DashboardMetricCard(
+                      title: loc.vitalsStatus,
+                      value: loc.loading,
+                      icon: Icons.favorite_rounded,
+                      color: Colors.grey,
+                    ),
+                    error: (err, stack) => _DashboardMetricCard(
+                      title: loc.vitalsStatus,
+                      value: loc.error,
+                      icon: Icons.error_rounded,
+                      color: Colors.orange,
+                    ),
+                  ),
+
+                  medsAsync.when(
+                    data: (meds) => _DashboardMetricCard(
+                      title: loc.meds,
+                      value: '${meds.length} Prescribed',
+                      icon: Icons.medication_rounded,
+                      color: theme.colorScheme.primary,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MedHistoryScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    loading: () => _DashboardMetricCard(
+                      title: loc.meds,
+                      value: loc.loading,
+                      icon: Icons.medication_rounded,
+                      color: Colors.grey,
+                    ),
+                    error: (err, stack) => _DashboardMetricCard(
+                      title: loc.meds,
+                      value: loc.error,
+                      icon: Icons.error_rounded,
+                      color: Colors.orange,
+                    ),
+                  ),
+
+                  _DashboardMetricCard(
+                    title: loc.reports,
+                    value: 'View History',
+                    icon: Icons.folder_shared_rounded,
+                    color: Colors.purpleAccent,
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const DnaModelVisualizationScreen(),
+                          builder: (_) => const ReportsScreen(),
                         ),
                       );
                     },
-                    borderRadius: BorderRadius.circular(12),
-                    child: _medicalWidget(
-                      "Vitals Status",
-                      status,
-                      latestReport != null
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      statusColor,
-                    ),
-                  );
-                },
-                loading: () => _medicalWidget(
-                  "Vitals Status",
-                  "Loading...",
-                  Icons.favorite,
-                  Colors.grey,
-                ),
-                error: (err, stack) => _medicalWidget(
-                  "Vitals Status",
-                  "Error",
-                  Icons.error,
-                  Colors.orange,
-                ),
-              ),
-
-              medsAsync.when(
-                data: (meds) => InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const MedHistoryScreen(),
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: _medicalWidget(
-                    "Active Meds",
-                    "${meds.length} Prescribed",
-                    Icons.medication,
-                    Colors.blue,
                   ),
-                ),
-                loading: () => _medicalWidget(
-                  "Active Meds",
-                  "Loading...",
-                  Icons.medication,
-                  Colors.grey,
-                ),
-                error: (err, stack) => _medicalWidget(
-                  "Active Meds",
-                  "Error",
-                  Icons.error,
-                  Colors.orange,
-                ),
-              ),
 
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ReportsScreen()),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: _medicalWidget(
-                  "All Reports",
-                  "View History",
-                  Icons.folder_copy,
-                  Colors.blueGrey,
-                ),
-              ),
+                  _DashboardMetricCard(
+                    title: loc.myDoctors,
+                    value: 'View & Chat',
+                    icon: Icons.medical_services_rounded,
+                    color: Colors.teal,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MyDoctorsScreen(),
+                        ),
+                      );
+                    },
+                  ),
 
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MyDoctorsScreen()),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: _medicalWidget(
-                  "My Doctors",
-                  "View & Chat",
-                  Icons.medical_services_outlined,
-                  Colors.teal,
-                ),
-              ),
-
-              _medicalWidget(
-                "Next Simulation",
-                "Scheduled: Feb 25",
-                Icons.science,
-                Colors.purple,
-              ),
-            ],
+                  _DashboardMetricCard(
+                    title: 'Next Simulation',
+                    value: 'Scheduled: Feb 25',
+                    icon: Icons.science_rounded,
+                    color: Colors.deepPurpleAccent,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TwinSimulationScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -357,32 +504,146 @@ class DashboardOverview extends ConsumerWidget {
   }
 }
 
-Widget _medicalWidget(String title, String value, IconData icon, Color color) {
-  return Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
+class _HeroDashboardCard extends StatelessWidget {
+  final AppLocalizations loc;
+
+  const _HeroDashboardCard({
+    required this.loc,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.secondary,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-      ],
-    ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: color, size: 40),
-        const SizedBox(height: 10),
-        Text(title, style: const TextStyle(color: Colors.grey)),
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-      ],
-    ),
-  );
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.28),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.22),
+              ),
+            ),
+            child: const Icon(
+              Icons.monitor_heart_rounded,
+              color: Colors.white,
+              size: 36,
+            ),
+          ),
+          const SizedBox(width: 22),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  loc.geneXMedicalPortal,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your AI-powered healthcare assistant for predictions, reports, doctors, and smart health insights.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.82),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 450.ms).slideY(begin: -0.08);
+  }
+}
+
+class _DashboardMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _DashboardMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return PremiumCard(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: color.withOpacity(0.22),
+              ),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.62),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.08);
+  }
 }

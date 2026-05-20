@@ -4,7 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../services/api_service.dart';
-
+import 'package:genex_app/l10n/app_localizations.dart';
+//done
 class TwinPreviewScreen extends StatefulWidget {
   const TwinPreviewScreen({super.key});
 
@@ -13,11 +14,8 @@ class TwinPreviewScreen extends StatefulWidget {
 }
 
 class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
-  String selectedMode = "drug_gene"; // drug_gene / drug_drug
+  String selectedMode = "drug_gene";
 
-  // =========================
-  // DRUG TO GENE
-  // =========================
   PlatformFile? selectedFile;
 
   final TextEditingController geneDrug1Controller = TextEditingController();
@@ -28,9 +26,6 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
 
   final ApiService apiService = ApiService();
 
-  // =========================
-  // DRUG TO DRUG
-  // =========================
   final TextEditingController interactionDrug1Controller =
       TextEditingController();
   final TextEditingController interactionDrug2Controller =
@@ -48,9 +43,6 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
     super.dispose();
   }
 
-  // =========================
-  // DRUG TO GENE LOGIC
-  // =========================
   Future<void> pickFile() async {
     try {
       final picked = await FilePicker.platform.pickFiles(
@@ -65,17 +57,12 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
         setState(() {
           selectedFile = picked.files.single;
         });
-
-        debugPrint("Picked file: ${selectedFile?.name}");
-        debugPrint("Picked path: ${selectedFile?.path}");
-        debugPrint("Picked bytes length: ${selectedFile?.bytes?.length}");
-        debugPrint("Picked size: ${selectedFile?.size}");
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("File selection failed: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("File selection failed: $e")),
+      );
     }
   }
 
@@ -115,9 +102,9 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
       if (!mounted) return;
 
       setState(() => loading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
     }
   }
 
@@ -132,19 +119,20 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
         fileName: selectedFile?.name ?? "",
       );
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Report saved successfully")),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Save failed: $e")));
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Save failed: $e")),
+      );
     }
   }
 
-  // =========================
-  // DRUG TO DRUG LOGIC
-  // =========================
   Future<void> checkInteraction() async {
     final drug1 = interactionDrug1Controller.text.trim();
     final drug2 = interactionDrug2Controller.text.trim();
@@ -170,6 +158,8 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
 
       final data = jsonDecode(response.body);
 
+      if (!mounted) return;
+
       setState(() {
         if (response.statusCode == 200) {
           if (data['found'] == true) {
@@ -183,19 +173,20 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
         }
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         interactionResult = 'Error: $e';
       });
     } finally {
+      if (!mounted) return;
+
       setState(() {
         isInteractionLoading = false;
       });
     }
   }
 
-  // =========================
-  // HELPERS
-  // =========================
   String formatKey(String key) {
     return key
         .replaceAll('_', ' ')
@@ -218,12 +209,16 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
   }
 
   Widget buildModeSelector() {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Row(
         children: [
@@ -239,7 +234,7 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
                   color: selectedMode == "drug_gene"
-                      ? Colors.blue.shade600
+                      ? theme.colorScheme.primary
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -250,7 +245,7 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                     fontWeight: FontWeight.w600,
                     color: selectedMode == "drug_gene"
                         ? Colors.white
-                        : Colors.black87,
+                        : theme.colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -269,7 +264,7 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
                   color: selectedMode == "drug_drug"
-                      ? Colors.blue.shade600
+                      ? theme.colorScheme.primary
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -280,7 +275,7 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                     fontWeight: FontWeight.w600,
                     color: selectedMode == "drug_drug"
                         ? Colors.white
-                        : Colors.black87,
+                        : theme.colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -297,52 +292,73 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
     required IconData icon,
     bool optional = false,
   }) {
+    final theme = Theme.of(context);
+
     return TextField(
       controller: controller,
+      style: TextStyle(color: theme.colorScheme.onSurface),
       decoration: InputDecoration(
         labelText: optional ? "$label (Optional)" : label,
-        prefixIcon: Icon(icon),
+        labelStyle: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.65),
+        ),
+        prefixIcon: Icon(icon, color: theme.colorScheme.primary),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: theme.inputDecorationTheme.fillColor,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 16,
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(
+            color: theme.dividerColor.withOpacity(0.2),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: theme.colorScheme.primary,
+          ),
         ),
       ),
     );
   }
 
-  // =========================
-  // DRUG TO GENE UI
-  // =========================
   Widget buildDrugGeneSection() {
+    final theme = Theme.of(context);
+
     return Card(
       elevation: 0,
-      color: Colors.white,
+      color: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(22),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Drug to Gene Interaction",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               "Upload a patient file, enter the selected drug(s), and review the result in a cleaner structured layout.",
               style: TextStyle(
                 fontSize: 13.5,
-                color: Colors.grey.shade700,
+                color: theme.colorScheme.onSurface.withOpacity(0.65),
                 height: 1.4,
               ),
             ),
@@ -357,6 +373,8 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                 ),
                 style: ElevatedButton.styleFrom(
                   elevation: 0,
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -370,19 +388,21 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: Colors.green.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.green.shade200),
+                  border: Border.all(
+                    color: Colors.green.withOpacity(0.35),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.green.shade700),
+                    const Icon(Icons.check_circle, color: Colors.green),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         "Selected file: ${selectedFile!.name}",
-                        style: TextStyle(
-                          color: Colors.green.shade800,
+                        style: const TextStyle(
+                          color: Colors.green,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -411,6 +431,8 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                 onPressed: loading ? null : evaluate,
                 style: ElevatedButton.styleFrom(
                   elevation: 0,
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -420,7 +442,10 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                     ? const SizedBox(
                         height: 22,
                         width: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text(
                         "Evaluate",
@@ -438,28 +463,43 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
   }
 
   Widget buildEmptyState() {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.analytics_outlined, size: 48, color: Colors.grey.shade500),
+          Icon(
+            Icons.analytics_outlined,
+            size: 48,
+            color: theme.colorScheme.onSurface.withOpacity(0.45),
+          ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             "No evaluation yet",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             "Run the simulation and the results will appear here in a more readable format.",
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 13.5),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.65),
+              fontSize: 13.5,
+            ),
           ),
         ],
       ),
@@ -471,22 +511,26 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
     required String value,
     required IconData icon,
   }) {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: theme.colorScheme.primary.withOpacity(0.12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: Colors.blue.shade700),
+            child: Icon(icon, color: theme.colorScheme.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -495,14 +539,18 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: theme.colorScheme.onSurface.withOpacity(0.65),
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -540,32 +588,47 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
   }
 
   Widget buildPrimitiveValue(dynamic value) {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: theme.scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Text(
         value?.toString() ?? "-",
-        style: const TextStyle(fontSize: 14, height: 1.45),
+        style: TextStyle(
+          fontSize: 14,
+          height: 1.45,
+          color: theme.colorScheme.onSurface,
+        ),
       ),
     );
   }
 
   Widget buildListValue(List list) {
+    final theme = Theme.of(context);
+
     if (list.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: theme.scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(
+            color: theme.dividerColor.withOpacity(0.2),
+          ),
         ),
-        child: const Text("No data available"),
+        child: Text(
+          "No data available",
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
       );
     }
 
@@ -579,14 +642,16 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.indigo.shade50,
+              color: theme.colorScheme.primary.withOpacity(0.12),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.indigo.shade100),
+              border: Border.all(
+                color: theme.colorScheme.primary.withOpacity(0.2),
+              ),
             ),
             child: Text(
               item.toString(),
               style: TextStyle(
-                color: Colors.indigo.shade900,
+                color: theme.colorScheme.primary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -610,13 +675,17 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
   }
 
   Widget buildMapValue(Map map, {bool nested = false}) {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: nested ? Colors.white : Colors.grey.shade50,
+        color: nested ? theme.colorScheme.surface : theme.scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Column(
         children: map.entries.map<Widget>((entry) {
@@ -627,9 +696,10 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
               children: [
                 Text(
                   formatKey(entry.key.toString()),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -657,12 +727,16 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
     required dynamic value,
     bool nested = false,
   }) {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -674,6 +748,7 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
               style: TextStyle(
                 fontSize: nested ? 14 : 15,
                 fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 10),
@@ -699,6 +774,8 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
   }
 
   Widget buildResultSection() {
+    final theme = Theme.of(context);
+
     return SizedBox(
       height: getResultSectionHeight(context),
       child: DefaultTabController(
@@ -707,15 +784,18 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
           children: [
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(
+                  color: theme.dividerColor.withOpacity(0.2),
+                ),
               ),
-              child: const TabBar(
-                labelColor: Colors.black,
-                unselectedLabelColor: Colors.grey,
+              child: TabBar(
+                labelColor: theme.colorScheme.primary,
+                unselectedLabelColor:
+                    theme.colorScheme.onSurface.withOpacity(0.6),
                 indicatorSize: TabBarIndicatorSize.tab,
-                tabs: [
+                tabs: const [
                   Tab(text: "Summary"),
                   Tab(text: "Details"),
                 ],
@@ -733,32 +813,37 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
     );
   }
 
-  // =========================
-  // DRUG TO DRUG UI
-  // =========================
   Widget buildDrugDrugSection() {
+    final theme = Theme.of(context);
+
     return Card(
       elevation: 0,
-      color: Colors.white,
+      color: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(22),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(
+          color: theme.dividerColor.withOpacity(0.2),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Drug to Drug Interaction",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               "Enter two drug names to check whether there is an interaction between them.",
               style: TextStyle(
                 fontSize: 13.5,
-                color: Colors.grey.shade700,
+                color: theme.colorScheme.onSurface.withOpacity(0.65),
                 height: 1.4,
               ),
             ),
@@ -781,6 +866,8 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                 onPressed: isInteractionLoading ? null : checkInteraction,
                 style: ElevatedButton.styleFrom(
                   elevation: 0,
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -790,7 +877,10 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text(
                         "Check Interaction",
@@ -807,9 +897,11 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
               constraints: const BoxConstraints(minHeight: 180),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: theme.scaffoldBackgroundColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(
+                  color: theme.dividerColor.withOpacity(0.2),
+                ),
               ),
               child: SingleChildScrollView(
                 child: Text(
@@ -820,8 +912,8 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                     fontSize: 15,
                     height: 1.5,
                     color: interactionResult.isEmpty
-                        ? Colors.grey.shade600
-                        : Colors.black87,
+                        ? theme.colorScheme.onSurface.withOpacity(0.6)
+                        : theme.colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -832,16 +924,23 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
     );
   }
 
-  // =========================
-  // MAIN BUILD
-  // =========================
   @override
   Widget build(BuildContext context) {
     final bool isDrugGeneMode = selectedMode == "drug_gene";
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xffF6F8FB),
-      appBar: AppBar(elevation: 0, title: const Text("Twin Simulation")),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        elevation: 0,
+        title: Text(
+          "Twin Simulation",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -865,6 +964,8 @@ class _TwinPreviewScreenState extends State<TwinPreviewScreen> {
                     icon: const Icon(Icons.save_alt_rounded),
                     label: const Text("Save Report"),
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),

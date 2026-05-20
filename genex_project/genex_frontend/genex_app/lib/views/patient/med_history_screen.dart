@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
 import '../../models/medicine_model.dart';
+
 import '../../core/secure_storage.dart'; // Import your secure storage class
 import '../../viewmodels/providers.dart';
 
@@ -12,8 +14,11 @@ class MedHistoryScreen extends ConsumerStatefulWidget {
   const MedHistoryScreen({super.key});
 
   @override
-  ConsumerState<MedHistoryScreen> createState() => _MedHistoryScreenState();
+  ConsumerState<MedHistoryScreen>
+      createState() =>
+          _MedHistoryScreenState();
 }
+
 
 class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   bool _isAdding = false; // Tracks API loading state
@@ -23,6 +28,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   // Base configuration for Dio
   final Dio _dio = Dio(BaseOptions(baseUrl: "http://127.0.0.1:8000/api/"));
 
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +36,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   }
 
   Future<String?> _getToken() async {
+
     final token = await SecureStorage.readToken();
     debugPrint("DEBUG: Token from SecureStorage -> $token");
     return token;
@@ -40,43 +47,90 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
     final url = Uri.parse(
       'https://clinicaltables.nlm.nih.gov/api/rxterms/v3/search?terms=$query',
     );
+
     try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return List<String>.from(data[1]);
+      final response =
+          await http.get(url);
+
+      if (response.statusCode ==
+          200) {
+        final List<dynamic> data =
+            json.decode(response.body);
+
+        return List<String>.from(
+          data[1],
+        );
       }
     } catch (e) {
-      debugPrint("External API Error: $e");
+      debugPrint(
+        "External API Error: $e",
+      );
     }
+
     return [];
   }
 
-  Future<void> _loadMedicinesFromDB() async {
-    final token = await _getToken();
+  Future<void>
+      _loadMedicinesFromDB() async {
+    final token =
+        await _getToken();
+
     try {
-      final response = await _dio.get(
+      final response =
+          await _dio.get(
         'medicines/',
-        options: Options(headers: {"Authorization": "Bearer $token"}),
+        options: Options(
+          headers: {
+            "Authorization":
+                "Bearer $token",
+          },
+        ),
       );
-      if (response.statusCode == 200) {
-        final List data = response.data;
+
+      if (response.statusCode ==
+          200) {
+        final List data =
+            response.data;
+
+        if (!mounted) return;
+
         setState(() {
           medicines.clear();
+
           for (var item in data) {
-            medicines.add(MedicineHistory.fromJson(item));
+            medicines.add(
+              MedicineHistory
+                  .fromJson(item),
+            );
           }
         });
       }
     } catch (e) {
-      debugPrint("Load Error: $e");
+      debugPrint(
+        "Load Error: $e",
+      );
     }
   }
 
-  // 1. Updated Add Medicine Function
-  Future<void> _addMedicineToDB(String medName) async {
-    final trimmedName = medName.trim();
-    if (trimmedName.isEmpty) return;
+  Future<void> _addMedicineToDB(
+    String medName,
+  ) async {
+    final loc =
+        AppLocalizations.of(context)!;
+
+    final trimmedName =
+        medName.trim();
+
+    if (trimmedName.isEmpty) {
+      return;
+    }
+
+    final exists = medicines.any(
+      (m) =>
+          m.name.toLowerCase() ==
+          trimmedName.toLowerCase(),
+    );
+
 
     // CHECK 1: Local existence check (Case-insensitive)
     bool exists = medicines.any(
@@ -84,28 +138,58 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
     );
 
     if (exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("This medicine is already in your list.")),
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            loc
+                .medicineAlreadyExists,
+          ),
+          behavior:
+              SnackBarBehavior
+                  .floating,
+        ),
       );
+
       return;
     }
-    setState(() => _isAdding = true);
 
-    final token = await _getToken();
+    setState(
+      () => _isAdding = true,
+    );
+
+    final token =
+        await _getToken();
+
     if (token == null) {
-      setState(() => _isAdding = false);
+
+      if (mounted) {
+        setState(
+          () => _isAdding = false,
+        );
+      }
+
+
       return;
     }
 
     try {
-      final response = await _dio.post(
+      final response =
+          await _dio.post(
         'medicines/',
         data: {
           "name": trimmedName,
+
           "added_at": DateTime.now().toIso8601String(),
         },
-        options: Options(headers: {"Authorization": "Bearer $token"}),
+        options: Options(
+          headers: {
+            "Authorization":
+                "Bearer $token",
+          },
+        ),
       );
+
 
       if (response.statusCode == 201) {
         ref.invalidate(medicinesProvider);
@@ -189,34 +273,99 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   void _confirmDelete(int index) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Delete Medicine"),
-        content: const Text("Are you sure you want to remove this medicine?"),
+      builder: (ctx) =>
+          AlertDialog(
+        backgroundColor:
+            theme.colorScheme.surface,
+        title: Text(
+          loc.deleteMedicine,
+          style: TextStyle(
+            color: theme
+                .colorScheme
+                .onSurface,
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          loc
+              .removeMedicineQuestion,
+          style: TextStyle(
+            color: theme
+                .colorScheme
+                .onSurface
+                .withOpacity(0.75),
+          ),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
+
+            onPressed:
+                () => Navigator.pop(
+              ctx,
+            ),
+            child: Text(
+              loc.cancel,
+              style: TextStyle(
+                color: theme
+                    .colorScheme
+                    .primary,
+              ),
+            ),
+
           ),
           ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(
+              backgroundColor:
+                  Colors.redAccent,
+              foregroundColor:
+                  Colors.white,
+            ),
             onPressed: () {
               Navigator.pop(ctx);
+
               _deleteMedicineFromDB(medicines[index]);
             },
-            child: const Text("Delete"),
+            child: Text(
+              loc.delete,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // added medicines in user database
-  Widget _buildItem(MedicineHistory med) {
-    String formattedDate = "Just now";
+
+  Widget _buildItem(
+    MedicineHistory med,
+    Animation<double> animation,
+  ) {
+    final theme =
+        Theme.of(context);
+
+    final isDark =
+        theme.brightness ==
+            Brightness.dark;
+
+    final loc =
+        AppLocalizations.of(context)!;
+
+    String formattedDate =
+        loc.justNow;
+
 
     if (med.date != null) {
-      DateTime dt = DateTime.parse(med.date!).toLocal();
-      formattedDate = DateFormat('yyyy-MM-dd – kk:mm').format(dt);
+      DateTime dt = DateTime.parse(
+        med.date!,
+      ).toLocal();
+
+      formattedDate =
+          DateFormat(
+        'yyyy-MM-dd – kk:mm',
+      ).format(dt);
     }
+
 
     return Dismissible(
       key: ValueKey(med.id),
@@ -234,11 +383,64 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
         }
       },
       child: Card(
-        margin: const EdgeInsets.symmetric(vertical: 5),
+        color:
+            theme.colorScheme.surface,
+        elevation:
+            isDark ? 0 : 1,
+        margin:
+            const EdgeInsets.symmetric(
+          vertical: 5,
+        ),
+        shape:
+            RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(
+                  12),
+          side: BorderSide(
+            color: theme
+                .dividerColor
+                .withOpacity(0.15),
+          ),
+        ),
         child: ListTile(
           title: Text(
             med.name,
-            style: const TextStyle(fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontWeight:
+                  FontWeight.w500,
+              color: theme
+                  .colorScheme
+                  .onSurface,
+            ),
+          ),
+          subtitle: Text(
+            "${loc.addedOn}: $formattedDate",
+            style: TextStyle(
+              color: theme
+                  .colorScheme
+                  .onSurface
+                  .withOpacity(0.65),
+            ),
+          ),
+          trailing: IconButton(
+            icon: const Icon(
+              Icons.delete_outline,
+              color: Colors.redAccent,
+            ),
+            onPressed: () {
+              int currentIndex =
+                  medicines.indexOf(
+                med,
+              );
+
+              if (currentIndex !=
+                  -1) {
+                _confirmDelete(
+                  currentIndex,
+                );
+              }
+            },
+
           ),
           subtitle: Text("Added on: $formattedDate"),
           trailing: const Icon(Icons.swipe_left, color: Colors.grey),
@@ -248,28 +450,80 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
+    final theme =
+        Theme.of(context);
+
+    final loc =
+        AppLocalizations.of(context)!;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Medicine History')),
+      backgroundColor:
+          theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(
+          loc.medicineHistory,
+          style: TextStyle(
+            color:
+                theme.colorScheme.onSurface,
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+        backgroundColor:
+            theme.appBarTheme
+                .backgroundColor,
+        foregroundColor:
+            theme.colorScheme
+                .onSurface,
+        elevation: 0,
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(20),
+        padding:
+            const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment
+                  .start,
           children: [
-            const Text(
-              "Search & Add Medicine",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              loc.searchAddMedicine,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight:
+                    FontWeight.bold,
+                color: theme
+                    .colorScheme
+                    .onSurface,
+              ),
             ),
-            const SizedBox(height: 12),
+
+            const SizedBox(
+                height: 12),
+
 
             Autocomplete<String>(
-              optionsBuilder: (TextEditingValue textEditingValue) async {
-                return await _getDrugSuggestions(textEditingValue.text);
+              optionsBuilder:
+                  (
+                    TextEditingValue
+                        textEditingValue,
+                  ) async {
+                return await _getDrugSuggestions(
+                  textEditingValue
+                      .text,
+                );
               },
-              onSelected: (String selection) {
-                // Logic removed here so it only adds on Enter or Plus click
-                debugPrint("Selected suggestion: $selection");
+              onSelected:
+                  (
+                    String selection,
+                  ) {
+                debugPrint(
+                  "Selected suggestion: $selection",
+                );
               },
+
               fieldViewBuilder:
                   (context, controller, focusNode, onFieldSubmitted) {
                     return TextField(
@@ -339,6 +593,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
                       itemCount: medicines.length,
                       itemBuilder: (context, index) {
                         return _buildItem(medicines[index]);
+
                       },
                     ),
             ),

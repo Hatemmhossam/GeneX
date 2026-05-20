@@ -1,8 +1,14 @@
+
 import 'dart:async';
 import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../models/chat_message_model.dart';
@@ -90,10 +96,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   WebSocketChannel? _channel;
+
   List<ChatMessageModel> messages = [];
   StreamSubscription? _subscription;
 
   bool isLoading = true;
+  bool isSendingAttachment = false;
+
   String? error;
   String? currentUserId;
   String? currentUserRole;
@@ -115,12 +124,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _initChat() async {
-    try {
-      final authState = ref.read(authViewModelProvider);
-      currentUserId = authState.user?.id?.toString();
-      currentUserRole = authState.user?.role?.toString();
+  try {
+    final authState = ref.read(authViewModelProvider);
 
-      final chatService = ref.read(chatServiceProvider);
+    currentUserId = authState.user?.id?.toString();
+    currentUserRole = authState.user?.role?.toString();
+
 
       final oldMessages = await chatService
           .getMessages(widget.conversationId)
@@ -155,35 +164,64 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             );
           }
 
-          _scrollToBottom();
-        },
-        onError: (e) {
-          if (!mounted) return;
-          setState(() {
-            error = 'WebSocket error: $e';
-          });
-        },
-      );
+    final oldMessages = await chatService
+        .getMessages(widget.conversationId)
+        .timeout(const Duration(seconds: 12));
 
-      if (!mounted) return;
+    await chatService
+        .markMessagesAsRead(widget.conversationId)
+        .timeout(const Duration(seconds: 12));
+
 
       setState(() {
         messages = oldMessages.reversed.toList();
         isLoading = false;
       });
 
-      _scrollToBottom();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        error = e.toString();
-        isLoading = false;
-      });
-    }
-  }
+    _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
+    _channel!.stream.listen(
+      (data) {
+        final decoded = jsonDecode(data);
+        final message = ChatMessageModel.fromJson(decoded);
+
+        if (!mounted) return;
+
+        setState(() {
+          final alreadyExists = messages.any((m) => m.id == message.id);
+          if (!alreadyExists) messages.add(message);
+        });
+
+        _scrollToBottom();
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() {
+          error = 'WebSocket error: $e';
+        });
+      },
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      messages = oldMessages;
+      isLoading = false;
+    });
+
+    _scrollToBottom();
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() {
+      error = e.toString();
+      isLoading = false;
+    });
+  }
+}
   void _sendMessage() {
     final text = _messageController.text.trim();
+
     if (text.isEmpty || _channel == null) return;
 
     _channel!.sink.add(jsonEncode({'content': text}));
@@ -191,10 +229,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _pickAndUploadFile() async {
+    final loc = AppLocalizations.of(context)!;
+
     try {
       final result = await FilePicker.platform.pickFiles(withData: true);
 
       if (result == null || result.files.isEmpty) return;
+
+      setState(() => isSendingAttachment = true);
 
       final file = result.files.first;
       final chatService = ref.read(chatServiceProvider);
@@ -209,9 +251,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       setState(() {
         final alreadyExists = messages.any((m) => m.id == uploadedMessage.id);
-        if (!alreadyExists) {
-          messages.add(uploadedMessage);
-        }
+        if (!alreadyExists) messages.add(uploadedMessage);
       });
 
       _messageController.clear();
@@ -221,34 +261,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('File upload failed: $e'),
+          content: Text('${loc.fileUploadFailed}: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );
+    } finally {
+      if (mounted) setState(() => isSendingAttachment = false);
     }
   }
 
   void _scrollToBottom() {
-    if (!_scrollController.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 90,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOut,
+        );
+      }
+    });
 
-    _scrollController.jumpTo(0);
   }
 
   String _formatTime(DateTime dt) {
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
     final suffix = dt.hour >= 12 ? 'PM' : 'AM';
+
     return '$hour:$minute $suffix';
   }
 
   String _formatDateLabel(DateTime dt) {
+    final loc = AppLocalizations.of(context)!;
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final date = DateTime(dt.year, dt.month, dt.day);
-
     final diff = today.difference(date).inDays;
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
+
+    if (diff == 0) return loc.today;
+    if (diff == 1) return loc.yesterday;
+
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
@@ -264,21 +317,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildDateHeader(ChatMessageModel message) {
+    final theme = Theme.of(context);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(14),
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: theme.dividerColor.withOpacity(0.14),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(
+                  theme.brightness == Brightness.dark ? 0.18 : 0.04,
+                ),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Text(
             _formatDateLabel(message.createdAt),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface.withOpacity(0.62),
             ),
           ),
         ),
@@ -287,26 +353,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessageModel message) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
     final isMine = message.senderId.toString() == currentUserId;
+    final maxWidth = MediaQuery.of(context).size.width > 700
+        ? 480.0
+        : MediaQuery.of(context).size.width * 0.76;
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         decoration: BoxDecoration(
-          color: isMine
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surfaceVariant,
+          gradient: isMine
+    ? LinearGradient(
+        colors: [
+          theme.colorScheme.primary,
+          const Color(0xFF2563EB),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      )
+    : null,
+          color: isMine ? null : theme.colorScheme.surface,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMine ? 16 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 16),
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMine ? 20 : 6),
+            bottomRight: Radius.circular(isMine ? 6 : 20),
           ),
+          border: Border.all(
+            color: isMine
+                ? Colors.transparent
+                : theme.dividerColor.withOpacity(0.12),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                theme.brightness == Brightness.dark ? 0.18 : 0.05,
+              ),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: isMine
@@ -314,6 +406,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               : CrossAxisAlignment.start,
           children: [
             if (message.content.isNotEmpty)
+
               Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,45 +425,70 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ],
               ),
             if (message.attachmentUrl != null) ...[
-              if (message.content.isNotEmpty) const SizedBox(height: 8),
+              if (message.content.isNotEmpty) const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(10),
+                  color: isMine
+                      ? Colors.white.withOpacity(0.16)
+                      : theme.scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isMine
+                        ? Colors.white.withOpacity(0.18)
+                        : theme.dividerColor.withOpacity(0.10),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.insert_drive_file_outlined, size: 18),
-                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.insert_drive_file_outlined,
+                      size: 20,
+                      color: isMine ? Colors.white : theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        message.attachmentName ?? 'Attachment',
+                        message.attachmentName ?? loc.attachment,
                         overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isMine
+                              ? Colors.white
+                              : theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 7),
             Text(
               _formatTime(message.createdAt),
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontSize: 11,
+                color: isMine
+                    ? Colors.white70
+                    : theme.colorScheme.onSurface.withOpacity(0.48),
+              ),
+
             ),
           ],
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 260.ms).slideY(begin: 0.08);
   }
 
   Widget _buildQuickReplyChips() {
     if (!_isDoctor) return const SizedBox.shrink();
 
+    final theme = Theme.of(context);
+
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: quickReplies.length,
@@ -379,14 +497,185 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final reply = quickReplies[index];
 
           return ActionChip(
-            avatar: const Icon(Icons.bolt_outlined, size: 18),
-            label: Text(reply),
+            backgroundColor: theme.colorScheme.surface,
+            side: BorderSide(
+              color: theme.dividerColor.withOpacity(0.14),
+            ),
+            avatar: Icon(
+              Icons.bolt_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+            label: Text(
+              reply,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             onPressed: () {
               _messageController.text = reply;
               _sendMessage();
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(26),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: theme.dividerColor.withOpacity(0.12),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: theme.colorScheme.primary,
+              size: 46,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              loc.noMessagesYet,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Start a secure medical conversation.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.60),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.96, 0.96));
+  }
+
+  Widget _buildInputBar() {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: theme.dividerColor.withOpacity(0.12),
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                theme.brightness == Brightness.dark ? 0.24 : 0.06,
+              ),
+              blurRadius: 24,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: isSendingAttachment ? null : _pickAndUploadFile,
+              tooltip: loc.uploadFile,
+              icon: isSendingAttachment
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  : Icon(
+                      Icons.attach_file_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                minLines: 1,
+                maxLines: 4,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  hintText: loc.typeMessage,
+                  prefixIcon: Icon(
+                    Icons.message_outlined,
+                    color: theme.colorScheme.primary.withOpacity(0.75),
+                  ),
+                  hintStyle: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.45),
+                  ),
+                  filled: true,
+                  fillColor: theme.brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.045)
+                      : theme.scaffoldBackgroundColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                ),
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                onPressed: _sendMessage,
+                icon: const Icon(
+                  Icons.send_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -403,12 +692,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FC),
-      appBar: AppBar(title: Text(widget.receiverName)),
+
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        elevation: 0,
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+              child: Icon(
+                Icons.medical_services_rounded,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.receiverName,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                color: theme.colorScheme.primary,
+              ),
+            )
           : error != null
+
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
