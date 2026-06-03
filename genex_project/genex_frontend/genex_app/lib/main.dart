@@ -13,8 +13,15 @@ import 'views/patient/responsive_dashboard.dart';
 import 'views/auth/doctor_dashboard.dart';
 import 'views/doctor/user_search_view.dart';
 import 'views/settings/settings_view.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(
     const ProviderScope(
       child: MyApp(),

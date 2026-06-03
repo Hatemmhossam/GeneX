@@ -449,4 +449,36 @@ Future<void> uploadGeneFile({
     throw Exception("Gene file upload failed: ${response.body}");
   }
 }
+
+Future<List<dynamic>> getNotifications() async {
+  await _refreshAuthHeader();
+
+  final response = await _dio.get('notifications/');
+
+  if (response.statusCode == 200 && response.data is List) {
+    return response.data;
+  }
+
+  return [];
+}
+Future<void> saveFcmToken(String fcmToken) async {
+  await _refreshAuthHeader();
+
+  try {
+    final response = await _dio.post(
+      'save-fcm-token/',
+      data: {
+        'fcm_token': fcmToken,
+      },
+    );
+
+    debugPrint("FCM TOKEN SAVED: ${response.data}");
+  } on DioException catch (e) {
+    debugPrint("SAVE FCM TOKEN ERROR STATUS: ${e.response?.statusCode}");
+    debugPrint("SAVE FCM TOKEN ERROR DATA: ${e.response?.data}");
+    debugPrint("SAVE FCM TOKEN ERROR URL: ${e.requestOptions.uri}");
+    rethrow;
+  }
+}
+
 }

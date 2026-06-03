@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "614852656255",
+    "project_id": "genex-aa039",
+    "storage_bucket": "genex-aa039.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:614852656255:android:4f0941ef76d407bcfed34a",
+        "android_client_info": {
+          "package_name": "com.example.genex_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCu6QFHUfDsvgNKbU9CUgzQnMY6MGxdWmU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

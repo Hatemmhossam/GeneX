@@ -13,14 +13,16 @@ class AppTheme {
     
       scaffoldBackgroundColor: AppColors.lightBackground,
 
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.lightPrimary,
-        brightness: Brightness.light,
-        primary: AppColors.lightPrimary,
-        secondary: AppColors.lightAccent,
-        surface: AppColors.lightSurface,
-        error: AppColors.error,
-      ),
+colorScheme: ColorScheme.fromSeed(
+  seedColor: AppColors.lightPrimary,
+  brightness: Brightness.light,
+).copyWith(
+  primary: AppColors.lightPrimary,
+  secondary: AppColors.lightAccent,
+  tertiary: AppColors.lightNavy,
+  surface: AppColors.lightSurface,
+  error: AppColors.error,
+),
 
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.lightSurface,
@@ -72,14 +74,16 @@ class AppTheme {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.darkBackground,
 
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.darkPrimary,
-        brightness: Brightness.dark,
-        primary: AppColors.darkPrimary,
-        secondary: AppColors.darkGlow,
-        surface: AppColors.darkCard,
-        error: AppColors.error,
-      ),
+colorScheme: ColorScheme.fromSeed(
+  seedColor: AppColors.darkPrimary,
+  brightness: Brightness.dark,
+).copyWith(
+  primary: AppColors.darkPrimary,
+  secondary: AppColors.darkGlow,
+  tertiary: AppColors.darkNavy,
+  surface: AppColors.darkCard,
+  error: AppColors.error,
+),
 
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.darkSurface,
