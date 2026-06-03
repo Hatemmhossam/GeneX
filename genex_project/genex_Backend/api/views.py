@@ -226,11 +226,14 @@ def upload_gene_file(request):
     }, status=status.HTTP_201_CREATED)
 
 #--- Twin Simulation View ---
+
+#--- Twin Simulation View ---
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 
 def run_twin(request):
+    data = request.data
     drugs = request.data.get('drugs', [])
 
     if not drugs or not isinstance(drugs, list):
@@ -266,13 +269,14 @@ def run_twin(request):
         )
 
         return Response({
-            "message": "Full Digital Twin pipeline completed successfully",
-            "run_id": saved_run.id,
+            "results": " completed successfully",
+            
             "baseline_risk": result.get("baseline_risk"),
             "single_results": result.get("single_results", []),
             "pair_results": result.get("pair_results", []),
             "fusion_results": result.get("fusion_results", []),
             "best_recommendation": result.get("best_recommendation"),
+            "xai_summary": result.get("xai_summary"),
         }, status=status.HTTP_200_OK)
 
     except Exception as e:
@@ -343,6 +347,7 @@ def get_twin_history(request):
         })
 
     return Response(data, status=status.HTTP_200_OK)
+
 # --- Medicine Views ---f
 
 class MedicineViewSet(viewsets.ModelViewSet):
@@ -785,19 +790,11 @@ def analyze_drug(request):
 
     except Exception as e:
         return Response({"error": f"Unexpected server error: {str(e)}"}, status=500)
-
+    
 print("BEFORE loading model", flush=True)
 
-MODEL = None
 
-def get_model():
-    global MODEL
-
-    if MODEL is None:
-        MODEL = XGBClassifier()
-        MODEL.load_model("api/ml_asssets/best_ra_xgb_model.json")
-
-    return MODEL
+MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
 FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
 class GeneUploadView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -813,7 +810,11 @@ class GeneUploadView(APIView):
             )
 
         # Optional: restrict upload type
-        
+        if not file.name.lower().endswith(".csv"):
+            return Response(
+                {"error": "Only CSV files are supported"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             # 1) Read CSV
@@ -933,6 +934,8 @@ class GeneUploadView(APIView):
                 {"error": f"Gene processing/prediction failed: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
 
 
 @api_view(["GET"])
@@ -1396,4 +1399,7 @@ def mri_predict_gradcam(request):
         return JsonResponse({
             "error": str(e)
         }, status=500)
+
+
+
 

@@ -12,12 +12,7 @@ import '../../widgets/loading_button.dart';
 import '../../widgets/premium_card.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
 
-enum UploadType {
-  vcf,
-  geneExpression,
-  tests,
-  mri,
-}
+enum UploadType { vcf, geneExpression, tests, mri }
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -35,7 +30,6 @@ class _UploadScreenState extends State<UploadScreen> {
   static const String baseUrl = 'http://127.0.0.1:8000/api/';
 
   final _formKey = GlobalKey<FormState>();
-
 
   // --- Controllers ---
 
@@ -69,7 +63,6 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> pickFile() async {
-
     //choose file format based on type of file
 
     List<String> allowedExtensions;
@@ -111,12 +104,12 @@ class _UploadScreenState extends State<UploadScreen> {
       } else if (_selectedType == UploadType.mri) {
         _uploadMRIAndAnalyze(picked);
       }
-
     }
   }
 
   Future<void> _uploadAndAnalyze(PlatformFile file) async {
-    
+    final loc = AppLocalizations.of(context)!;
+
     //analyze gene expression file and get risk score
 
     // 1. Show Loading
@@ -148,10 +141,7 @@ class _UploadScreenState extends State<UploadScreen> {
         );
       } else if (file.path != null) {
         request.files.add(
-          await http.MultipartFile.fromPath(
-            'file',
-            file.path!,
-          ),
+          await http.MultipartFile.fromPath('file', file.path!),
         );
       } else {
         throw Exception(loc.fileDataInaccessible);
@@ -159,6 +149,10 @@ class _UploadScreenState extends State<UploadScreen> {
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
+
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context); // closes loading dialog
+      }
 
       if (!mounted) return;
 
@@ -188,9 +182,6 @@ class _UploadScreenState extends State<UploadScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-
-    final loc = AppLocalizations.of(context)!;
 
   Future<void> _uploadMRIAndAnalyze(PlatformFile file) async {
     showDialog(
@@ -364,6 +355,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
   Future<void> sendTestsToBackend() async {
     //send medical tests to backend and get analysis
+    final loc = AppLocalizations.of(context)!;
 
     if (!_formKey.currentState!.validate()) {
       _showErrorSnackBar(loc.fixFormErrors);
@@ -381,9 +373,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
     final url = Uri.parse("${baseUrl}predict_xai/");
 
-
     final Map<String, dynamic> requestBody = {
-
       "ESR": double.tryParse(_esrController.text),
       "CRP": double.tryParse(_crpController.text),
       "RF": double.tryParse(_rfController.text),
@@ -531,9 +521,7 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   String _titleForType(UploadType type) {
-<
     final loc = AppLocalizations.of(context)!;
-
 
     switch (type) {
       case UploadType.vcf:
@@ -582,11 +570,8 @@ class _UploadScreenState extends State<UploadScreen> {
     final title = _titleForType(_selectedType);
 
     return Scaffold(
-
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(loc.medicalAnalysisUpload),
-      ),
+      appBar: AppBar(title: Text(loc.medicalAnalysisUpload)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Center(
@@ -614,8 +599,8 @@ class _UploadScreenState extends State<UploadScreen> {
                           children: [
                             CircleAvatar(
                               radius: 26,
-                              backgroundColor:
-                                  theme.colorScheme.primary.withOpacity(0.12),
+                              backgroundColor: theme.colorScheme.primary
+                                  .withOpacity(0.12),
                               child: Icon(
                                 _iconForType(_selectedType),
                                 color: theme.colorScheme.primary,
@@ -636,8 +621,9 @@ class _UploadScreenState extends State<UploadScreen> {
                         Text(
                           _instructionForType(_selectedType),
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color:
-                                theme.colorScheme.onSurface.withOpacity(0.65),
+                            color: theme.colorScheme.onSurface.withOpacity(
+                              0.65,
+                            ),
                             height: 1.5,
                           ),
                         ),
@@ -774,9 +760,7 @@ class _UploadScreenState extends State<UploadScreen> {
       decoration: BoxDecoration(
         color: theme.colorScheme.primary.withOpacity(0.06),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.18),
-        ),
+        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.18)),
       ),
       child: Column(
         children: [
@@ -821,13 +805,6 @@ class _UploadScreenState extends State<UploadScreen> {
 
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(child: _numberField(loc.age, _ageController, isInt: true)),
-            const SizedBox(width: 14),
-            Expanded(child: _genderDropdown()),
-          ],
-        ),
         const SizedBox(height: 14),
         Row(
           children: [
@@ -871,9 +848,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
     return DropdownButtonFormField<String>(
       value: _selectedGender,
-      decoration: InputDecoration(
-        labelText: loc.gender,
-      ),
+      decoration: InputDecoration(labelText: loc.gender),
       items: const [
         DropdownMenuItem(value: "Female", child: Text("Female")),
         DropdownMenuItem(value: "Male", child: Text("Male")),
@@ -902,10 +877,7 @@ class _UploadScreenState extends State<UploadScreen> {
         ),
       ],
       keyboardType: TextInputType.numberWithOptions(decimal: !isInt),
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-      ),
+      decoration: InputDecoration(labelText: label, isDense: true),
       validator: (value) {
         final loc = AppLocalizations.of(context)!;
 
@@ -935,9 +907,7 @@ class _UploadScreenState extends State<UploadScreen> {
       decoration: BoxDecoration(
         color: theme.colorScheme.primary.withOpacity(0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.dividerColor.withOpacity(0.12),
-        ),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.12)),
       ),
       child: Row(
         children: [
@@ -996,10 +966,7 @@ class _HeroUploadCard extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _HeroUploadCard({
-    required this.title,
-    required this.subtitle,
-  });
+  const _HeroUploadCard({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -1010,10 +977,7 @@ class _HeroUploadCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.secondary,
-          ],
+          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1033,9 +997,7 @@ class _HeroUploadCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.18),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withOpacity(0.22),
-              ),
+              border: Border.all(color: Colors.white.withOpacity(0.22)),
             ),
             child: const Icon(
               Icons.auto_awesome_rounded,

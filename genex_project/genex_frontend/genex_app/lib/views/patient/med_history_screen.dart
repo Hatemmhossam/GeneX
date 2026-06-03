@@ -133,9 +133,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
 
 
     // CHECK 1: Local existence check (Case-insensitive)
-    bool exists = medicines.any(
-      (m) => m.name.toLowerCase() == trimmedName.toLowerCase(),
-    );
+  
 
     if (exists) {
       ScaffoldMessenger.of(context)
@@ -271,7 +269,11 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   }
 
   void _confirmDelete(int index) {
+              final loc = AppLocalizations.of(context)!;
+        final theme = Theme.of(context);
+
     showDialog(
+
       context: context,
       builder: (ctx) =>
           AlertDialog(
@@ -339,7 +341,6 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
 
   Widget _buildItem(
     MedicineHistory med,
-    Animation<double> animation,
   ) {
     final theme =
         Theme.of(context);
@@ -442,8 +443,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
             },
 
           ),
-          subtitle: Text("Added on: $formattedDate"),
-          trailing: const Icon(Icons.swipe_left, color: Colors.grey),
+          
         ),
       ),
     );

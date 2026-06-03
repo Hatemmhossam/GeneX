@@ -562,7 +562,7 @@ Widget _hero(BuildContext context) {
               subtitle: loc.reviewPatientSimulations,
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const TwinSimulationScreen()),
+                MaterialPageRoute(builder: (_) => const TwinPreviewScreen()),
               ),
             ),
           ],
