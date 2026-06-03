@@ -39,6 +39,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
   // --- Controllers ---
 
+  final _ageController = TextEditingController();
   final _esrController = TextEditingController();
   final _crpController = TextEditingController();
   final _antiCcpController = TextEditingController();
@@ -59,6 +60,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
   @override
   void dispose() {
+    _ageController.dispose();
     _esrController.dispose();
     _crpController.dispose();
     _antiCcpController.dispose();
@@ -116,7 +118,8 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> _uploadAndAnalyze(PlatformFile file) async {
-    
+    final loc = AppLocalizations.of(context)!;
+
     //analyze gene expression file and get risk score
 
     // 1. Show Loading
@@ -162,6 +165,10 @@ class _UploadScreenState extends State<UploadScreen> {
 
       if (!mounted) return;
 
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
@@ -183,14 +190,17 @@ class _UploadScreenState extends State<UploadScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
       _showErrorSnackBar("${loc.uploadFailed}: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-
-    final loc = AppLocalizations.of(context)!;
 
   Future<void> _uploadMRIAndAnalyze(PlatformFile file) async {
     showDialog(
@@ -363,6 +373,8 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> sendTestsToBackend() async {
+    final loc = AppLocalizations.of(context)!;
+
     //send medical tests to backend and get analysis
 
     if (!_formKey.currentState!.validate()) {
@@ -383,6 +395,8 @@ class _UploadScreenState extends State<UploadScreen> {
 
 
     final Map<String, dynamic> requestBody = {
+      "Age": int.tryParse(_ageController.text),
+      "Gender": _selectedGender,
 
       "ESR": double.tryParse(_esrController.text),
       "CRP": double.tryParse(_crpController.text),
@@ -531,7 +545,6 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   String _titleForType(UploadType type) {
-<
     final loc = AppLocalizations.of(context)!;
 
 

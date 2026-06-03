@@ -11,6 +11,8 @@ import '../doctor/user_search_view.dart';
 import '../doctor/see_accessed_patients.dart';
 import '../doctor/pending_patients_view.dart';
 import '../doctor/twin_preview_screen.dart';
+import 'package:genex_app/widgets/floating_dna_background.dart';
+import 'dart:ui';
 
 class DoctorDashboard extends ConsumerStatefulWidget {
   const DoctorDashboard({super.key});
@@ -165,10 +167,37 @@ Widget build(BuildContext context) {
     body: Stack(
       children: [
         _background(isDark),
+
+      // DNA Floating Background
+      
+Positioned(
+  right: -230,
+  top: 240,
+  child: Transform.rotate(
+    angle: 0.18,
+    child: _softDnaImage(
+      width: 560,
+      opacity: 0.22,
+    ),
+  ),
+),
+
+Positioned(
+  left: -220,
+  bottom: -80,
+  child: Transform.rotate(
+    angle: -0.15,
+    child: _softDnaImage(
+      width: 480,
+      opacity: 0.16,
+    ),
+  ),
+),
         SafeArea(
           child: RefreshIndicator(
             color: mainBlue,
             onRefresh: _refreshDashboard,
+            
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.all(isDesktop ? 32 : 20),
@@ -336,6 +365,36 @@ Widget build(BuildContext context) {
     ],
   );
 }
+Widget _softDnaImage({
+  required double width,
+  required double opacity,
+}) {
+  return IgnorePointer(
+    child: Opacity(
+      opacity: opacity,
+      child: ShaderMask(
+        shaderCallback: (Rect bounds) {
+          return const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Colors.transparent,
+              Colors.white,
+              Colors.white,
+              Colors.transparent,
+            ],
+            stops: [0.0, 0.15, 0.85, 1.0],
+          ).createShader(bounds);
+        },
+        blendMode: BlendMode.dstIn,
+        child: Image.asset(
+          'assets/images/dna_bg.png',
+          width: width,
+        ),
+      ),
+    ),
+  );
+}
 Widget _hero(BuildContext context) {
   final theme = Theme.of(context);
 
@@ -357,19 +416,9 @@ Widget _hero(BuildContext context) {
         ),
       ],
     ),
-    child: Stack(
-      children: [
-        Positioned(
-          right: -45,
-          top: -55,
-          child: _heroRing(170),
-        ),
-        Positioned(
-          right: 70,
-          bottom: -70,
-          child: _heroRing(220),
-        ),
-        LayoutBuilder(
+   child: Stack(
+  children: [
+    LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 700;
 
@@ -562,7 +611,7 @@ Widget _hero(BuildContext context) {
               subtitle: loc.reviewPatientSimulations,
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const TwinSimulationScreen()),
+                MaterialPageRoute(builder: (_) => const TwinPreviewScreen()),
               ),
             ),
           ],
@@ -591,7 +640,7 @@ Widget _hero(BuildContext context) {
       borderRadius: BorderRadius.circular(28),
       border: Border.all(
         color: highlight
-            ? mainBlue.withOpacity(0.35)
+            ? mainBlue.withOpacity(0.18)
             : theme.dividerColor.withOpacity(0.12),
       ),
       boxShadow: [

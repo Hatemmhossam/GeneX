@@ -20,8 +20,6 @@ dependencies:
   webview_flutter: ^4.7.0
   flutter_tts: ^4.2.2
   speech_to_text: ^7.0.0
-  http: ^0.13.3 
-  intl: ^0.18.0 
   dio: ^5.4.0
   model_viewer_plus: ^1.7.0
   flutter_riverpod: ^2.3.7
@@ -29,8 +27,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   web_socket_channel: ^3.0.3
   file_picker: ^6.1.1
-  flutter_local_notifications: ^18.0.1
-
+  flutter_local_notifications: ^17.2.3
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.10
   google_fonts: ^6.2.1
   flutter_animate: ^4.5.2
   shimmer: ^3.0.0
@@ -53,3 +52,4 @@ flutter:
     - assets/models/dnaorange.glb
     - assets/models/dnared.glb
     - assets/images/genex_logo.jpeg
+    - assets/images/dna_bg.png

@@ -12,8 +12,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
-
-import os
 import dj_database_url
 from dotenv import load_dotenv
 
@@ -181,5 +179,5 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_ROOT = BASE_DIR / "media"
+

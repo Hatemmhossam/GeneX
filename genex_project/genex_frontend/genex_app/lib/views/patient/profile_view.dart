@@ -371,9 +371,10 @@ Widget build(BuildContext context) {
       ),
       boxShadow: [
         BoxShadow(
-          color: theme.colorScheme.primary.withOpacity(0.26),
-          blurRadius: 28,
-          offset: const Offset(0, 16),
+          color: const Color(0xFF2563EB).withOpacity(0.35),
+          blurRadius: 35,
+          spreadRadius: 2,
+          offset: const Offset(0, 18),
         ),
       ],
     ),
@@ -383,10 +384,10 @@ Widget build(BuildContext context) {
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.16),
+            color: Colors.white.withOpacity(0.12),
             shape: BoxShape.circle,
             border: Border.all(
-              color: Colors.white.withOpacity(0.22),
+              color: Colors.white.withOpacity(0.15),
             ),
           ),
           child: const Icon(
@@ -411,7 +412,7 @@ Widget build(BuildContext context) {
               Text(
                 loc.coreHealthMetrics,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.82),
+                  color: Colors.white.withOpacity(0.75),
                   height: 1.4,
                 ),
               ),

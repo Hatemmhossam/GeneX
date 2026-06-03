@@ -61,6 +61,8 @@ urlpatterns = [
     path("twin/upload-gene-file/", views.upload_gene_file, name="twin-upload-gene-file"),
     path("twin/run/", views.run_twin, name="run-twin"),
     path("twin/history/", views.get_twin_history, name="twin-history"),
+    #path('notifications/', views.get_notifications),
+    path('save-fcm-token/', views.save_fcm_token),
 ]
 
 
