@@ -13,13 +13,24 @@ class User(AbstractUser):
         ('admin', 'Admin'),
     )
 
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='patient')
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default='patient'
+    )
 
-    # Additional fields for patient information
-    age = models.IntegerField(null=True, blank=True)  # Age of the patient
-    weight = models.FloatField(null=True, blank=True)  # Weight in kg
-    height = models.FloatField(null=True, blank=True)  # Height in cm
-    gender = models.CharField(max_length=10, null=True, blank=True)  # Gender (optional)
+    # Patient Information
+    age = models.IntegerField(null=True, blank=True)
+    weight = models.FloatField(null=True, blank=True)
+    height = models.FloatField(null=True, blank=True)
+    gender = models.CharField(max_length=10, null=True, blank=True)
+
+    # FCM Token for Push Notifications
+    fcm_token = models.TextField(
+        null=True,
+        blank=True
+    )
+
     current_gene_file = models.ForeignKey(
         "FileUpload",
         null=True,
@@ -27,10 +38,9 @@ class User(AbstractUser):
         on_delete=models.SET_NULL,
         related_name="active_for_user"
     )
-   
+
     def __str__(self):
         return f"{self.username} ({self.role})"
-    
     # FileUpload model to store files associated with the user
 class FileUpload(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)  # Link file to a user (patient)
@@ -71,7 +81,23 @@ class DoctorPatient(models.Model):
 
     def __str__(self):
         return f"{self.doctor_username} -> {self.patient_username} ({self.status})"
-    
+
+class Notification(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notifications'
+    )
+
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+
+    is_read = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.title}"    
 
 class TwinRun(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="twin_runs")

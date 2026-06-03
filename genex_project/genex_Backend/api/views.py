@@ -1,88 +1,74 @@
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Q
-from rest_framework import status, views, viewsets, generics 
-from rest_framework.response import Response
-import traceback
-
-
+# Standard library imports
+import json
 import os
+import traceback
 import uuid
 import zipfile
+from io import TextIOWrapper
+
+# Third-party imports
+import joblib
+import matplotlib
+import numpy as np
+import pandas as pd
+import shap
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
-from django.conf import settings
-
-
-
-
-
-
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from .services import MLService
-from .models import DoctorPatient
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from .models import User, Medicine, SymptomReport,TwinSimulationReport
-from .serializers import UserSerializer, MedicineSerializer, SymptomReportSerializer,MedicalTestResultSerializer
+from firebase_admin import messaging
 from xgboost import XGBClassifier
 
-from django.db import connection
-from rest_framework.parsers import MultiPartParser, FormParser
-from django.views.decorators.csrf import csrf_exempt
-# ✅ IMPORTS: Ensure all your models and serializers are here
-from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun,MedicalTestResult
-# from .serializers import (
-#     UserSerializer, 
-#     MedicineSerializer, 
-#     SymptomReportSerializer, 
-#     # PatientSerializer
-# )
-print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
-
-from django.db import connection
-from rest_framework.parsers import MultiPartParser, FormParser
-#from .services import run_twin_simulation
-# ✅ IMPORTS: Ensure all your models and serializers are here
-from .models import User, Medicine, SymptomReport, DoctorPatient, FileUpload, TwinRun
-
-from .twin_runner import run_twin_runtime_for_user, clean_for_json
-from django.db import connection
-from .models import DrugInteraction
-import joblib
-import pandas as pd
-import numpy as np
+# Django imports
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from .models import GenePredictionReport
-from io import TextIOWrapper
-from .models import GeneExpressionFile
-#from .services.drug_analysis import analyze_drug_with_file
-import json
-from .models import GeneExpressionFile
-# ✅ IMPORTS: Ensure all your models and serializers are here
-from .models import User, Medicine, SymptomReport, DoctorPatient
-import shap
-from .models import GenePredictionReport
-#for test 
+from django.db.models import Q
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from .serializers import (
-    UserSerializer, 
-    MedicineSerializer, 
-    SymptomReportSerializer, 
-    PatientSerializer
+# Django REST Framework imports
+from rest_framework import generics, status, views, viewsets
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
 )
-from .serializers import GeneReportSerializer
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
+
+# Local imports
+from . import firebase_admin
+from .models import (
+    DoctorPatient,
+    DrugInteraction,
+    FileUpload,
+    GeneExpressionFile,
+    GenePredictionReport,
+    MedicalTestResult,
+    Medicine,
+    Notification,
+    SymptomReport,
+    TwinRun,
+    TwinSimulationReport,
+    User,
+)
+from .serializers import (
+    GeneReportSerializer,
+    MedicalTestResultSerializer,
+    MedicineSerializer,
+    PatientSerializer,
+    SymptomReportSerializer,
+    UserSerializer,
+)
+from .services import MLService
+from .twin_runner import clean_for_json, run_twin_runtime_for_user
+
+matplotlib.use("Agg")
+
+print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
 
 #from api.services.digital_twin.runner import run_full_twin_pipeline_for_user
 #from api.twin_runner import run_full_twin_pipeline_for_user
@@ -398,75 +384,97 @@ class PatientSearchView(generics.ListAPIView):
 def send_patient_request(request):
     """Allows a Doctor to send a connection request to a Patient."""
     print("--- NEW REQUEST RECEIVED ---")
-    
+
     doctor_user = request.user
     patient_username = request.data.get('patient_username')
 
     if not patient_username:
-        return Response({'error': 'Patient username is required'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Patient username is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-    # Check if Request Already Exists
-    # We use __iexact to ensure case-insensitive matching
     if DoctorPatient.objects.filter(
-        doctor_username=doctor_user.username, 
+        doctor_username=doctor_user.username,
         patient_username__iexact=patient_username
     ).exists():
-        return Response({'message': 'Request already exists'}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Save the Request
+        return Response(
+            {'message': 'Request already exists'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     try:
         DoctorPatient.objects.create(
             doctor_username=doctor_user.username,
             patient_username=patient_username,
             status='pending'
         )
-        print(f"SUCCESS: Linked Doctor {doctor_user.username} with Patient {patient_username}")
-        return Response({'message': 'Request sent successfully'}, status=status.HTTP_201_CREATED)
+
+        patient_user = User.objects.get(
+            username__iexact=patient_username
+        )
+
+        print("PATIENT FOUND:", patient_user.username)
+        print("PATIENT FCM TOKEN:", patient_user.fcm_token)
+
+        if patient_user.fcm_token:
+            try:
+                message = messaging.Message(
+                    notification=messaging.Notification(
+                        title="New Doctor Request",
+                        body=f"Dr. {doctor_user.username} wants to connect with you.",
+                    ),
+                    token=patient_user.fcm_token,
+                )
+
+                response = messaging.send(message)
+
+                print("FCM SENT SUCCESSFULLY:", response)
+
+            except Exception as fcm_error:
+                print("FCM SEND ERROR:", str(fcm_error))
+
+        else:
+            print("NO FCM TOKEN FOUND FOR PATIENT")
+
+        print(
+            f"SUCCESS: Linked Doctor {doctor_user.username} with Patient {patient_username}"
+        )
+
+        return Response(
+            {'message': 'Request sent successfully'},
+            status=status.HTTP_201_CREATED
+        )
+
     except Exception as e:
-        print(f"Error saving: {e}")
-        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        print("GENERAL ERROR:", str(e))
+
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def get_patient_requests(request):
-    print("\n========== 🕵️ NUCLEAR DEBUG MODE ==========")
-    
-    # 1. Who are you?
     current_user = request.user.username
-    print(f"👤 YOU ARE LOGGED IN AS: '{current_user}'")
 
-    # 2. What is in the database? (Print EVERYTHING)
-    all_requests = DoctorPatient.objects.all()
-    print(f"📦 TOTAL ROWS IN DB: {all_requests.count()}")
-    
-    for req in all_requests:
-        print(f"   -> Row ID {req.id}: Patient='{req.patient_username}' | Doctor='{req.doctor_username}'")
-        
-        # Check if it matches manually
-        if req.patient_username.lower().strip() == current_user.lower().strip():
-             print("      ✅ MATCH FOUND (Python comparison)")
-        else:
-             print("      ❌ NO MATCH")
-
-    # 3. actually filter
     my_requests = DoctorPatient.objects.filter(
         patient_username__iexact=current_user
     ).order_by('-id')
 
-    print(f"📉 DJANGO FILTER FOUND: {my_requests.count()}")
-
-    # 4. Return whatever we found
     data = []
+
     for req in my_requests:
         data.append({
             "id": req.id,
             "doctor_name": req.doctor_username,
             "status": req.status,
-            "date": "Today"
+            "date": "Today",
         })
-    
+
     return Response(data, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -1400,6 +1408,16 @@ def mri_predict_gradcam(request):
             "error": str(e)
         }, status=500)
 
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def save_fcm_token(request):
+    token = request.data.get("fcm_token")
 
+    if not token:
+        return Response({"error": "FCM token is required"}, status=400)
 
+    request.user.fcm_token = token
+    request.user.save()
 
+    return Response({"message": "FCM token saved successfully"})

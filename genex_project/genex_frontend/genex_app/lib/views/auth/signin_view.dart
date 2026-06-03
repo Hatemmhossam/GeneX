@@ -9,6 +9,7 @@ import '../../viewmodels/providers.dart';
 import '../../viewmodels/auth_state.dart';
 import '../../widgets/loading_button.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
+import '../../services/fcm_service.dart';
 
 class SigninView extends ConsumerStatefulWidget {
   const SigninView({super.key});
@@ -54,7 +55,17 @@ class _SigninViewState extends ConsumerState<SigninView> {
         if (next.token != null) {
           await prefs.setString('token', next.token!);
         }
+      try {
+        final fcmToken = await FcmService.getToken();
 
+        if (fcmToken != null && fcmToken.isNotEmpty) {
+          final apiService = ref.read(apiServiceProvider);
+          await apiService.saveFcmToken(fcmToken);
+        }
+      } catch (e) {
+        debugPrint("FCM token save failed: $e");
+      }
+      
         if (!context.mounted) return;
 
         if (role == 'patient') {

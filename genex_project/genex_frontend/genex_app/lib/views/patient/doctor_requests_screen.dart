@@ -72,7 +72,10 @@ class _DoctorRequestsScreenState extends State<DoctorRequestsScreen> {
         final List<dynamic> data = jsonDecode(response.body);
 
         setState(() {
-          requests = data.map((json) => DoctorRequest.fromJson(json)).toList();
+          requests = data
+              .map((json) => DoctorRequest.fromJson(json))
+              .where((request) => request.status == 'pending')
+              .toList();
           _isLoading = false;
         });
       } else {
@@ -108,7 +111,7 @@ class _DoctorRequestsScreenState extends State<DoctorRequestsScreen> {
 
       if (response.statusCode == 200) {
         setState(() {
-          requests[index].status = action == 'accept' ? 'accepted' : 'rejected';
+          requests.removeAt(index);
         });
 
         ScaffoldMessenger.of(context).showSnackBar(

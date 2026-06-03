@@ -61,6 +61,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await chatService.markMessagesAsRead(widget.conversationId);
       final wsUrl = await chatService.buildWebSocketUrl(widget.conversationId);
 
+      if (!mounted) return;
+
+      setState(() {
+        // ListView is reversed, so the newest message should be at index 0.
+        messages = oldMessages.reversed.toList();
+        isLoading = false;
+      });
+
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
       _channel!.stream.listen(
@@ -104,6 +112,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         messages = oldMessages;
         isLoading = false;
       });
+    }
+  }
 
       _scrollToBottom();
     } catch (e) {
@@ -121,6 +131,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     _channel!.sink.add(jsonEncode({'content': text}));
     _messageController.clear();
+    _scrollToBottom();
   }
 
   Future<void> _pickAndUploadFile() async {
@@ -192,14 +203,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   bool _shouldShowDateHeader(int index) {
-    if (index == 0) return true;
+    if (index == messages.length - 1) return true;
 
     final current = messages[index].createdAt;
-    final previous = messages[index - 1].createdAt;
+    final older = messages[index + 1].createdAt;
 
-    return current.year != previous.year ||
-        current.month != previous.month ||
-        current.day != previous.day;
+    return current.year != older.year ||
+        current.month != older.month ||
+        current.day != older.day;
   }
 
   Widget _buildDateHeader(ChatMessageModel message) {
@@ -319,18 +330,202 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Widget _buildEmptyState() {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(26),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: theme.dividerColor.withOpacity(0.12),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: theme.colorScheme.primary,
+              size: 46,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              loc.noMessagesYet,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Start a secure medical conversation.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.60),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.96, 0.96));
+  }
+
+  Widget _buildInputBar() {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: theme.dividerColor.withOpacity(0.12),
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                theme.brightness == Brightness.dark ? 0.24 : 0.06,
+              ),
+              blurRadius: 24,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: isSendingAttachment ? null : _pickAndUploadFile,
+              tooltip: loc.uploadFile,
+              icon: isSendingAttachment
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  : Icon(
+                      Icons.attach_file_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                minLines: 1,
+                maxLines: 4,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  hintText: loc.typeMessage,
+                  prefixIcon: Icon(
+                    Icons.message_outlined,
+                    color: theme.colorScheme.primary.withOpacity(0.75),
+                  ),
+                  hintStyle: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.45),
+                  ),
+                  filled: true,
+                  fillColor: theme.brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.045)
+                      : theme.scaffoldBackgroundColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                ),
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _isListening ? Colors.red : theme.colorScheme.secondary,
+              ),
+              child: IconButton(
+                onPressed: () {
+                  if (_isListening) {
+                    _stopListening();
+                  } else {
+                    _startListening();
+                  }
+                },
+                icon: Icon(
+                  _isListening ? Icons.mic : Icons.mic_none,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                onPressed: _sendMessage,
+                icon: const Icon(
+                  Icons.send_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _subscription?.cancel();
     _channel?.sink.close();
+    _speech.stop();
+    _flutterTts.stop();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FC),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(widget.receiverName),
       ),
@@ -351,14 +546,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   children: [
                     Expanded(
                       child: messages.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No messages yet. Start the conversation.',
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            )
+                          ? _buildEmptyState()
                           : ListView.builder(
                               controller: _scrollController,
+                              reverse: true,
                               padding: const EdgeInsets.all(12),
                               itemCount: messages.length,
                               itemBuilder: (context, index) {
@@ -377,52 +568,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             ),
                     ),
                     _buildQuickReplyChips(),
-                    SafeArea(
-                      top: false,
-                      child: Container(
-                        color: Colors.white,
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              onPressed: _pickAndUploadFile,
-                              icon: const Icon(Icons.attach_file),
-                              tooltip: 'Upload File',
-                            ),
-                            Expanded(
-                              child: TextField(
-                                controller: _messageController,
-                                minLines: 1,
-                                maxLines: 4,
-                                decoration: InputDecoration(
-                                  hintText: 'Type a message...',
-                                  filled: true,
-                                  fillColor: Colors.grey.shade100,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                ),
-                                onSubmitted: (_) => _sendMessage(),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            CircleAvatar(
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.primary,
-                              child: IconButton(
-                                onPressed: _sendMessage,
-                                icon: const Icon(
-                                  Icons.send,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    _buildInputBar(),
                   ],
                 ),
     );

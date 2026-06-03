@@ -338,172 +338,199 @@ class _DashboardHeader extends StatelessWidget {
 class DashboardOverview extends ConsumerWidget {
   const DashboardOverview({super.key});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final loc = AppLocalizations.of(context)!;
+@override
+Widget build(BuildContext context, WidgetRef ref) {
+  final theme = Theme.of(context);
+  final loc = AppLocalizations.of(context)!;
 
-    final medsAsync = ref.watch(medicinesProvider);
-    final reportsAsync = ref.watch(geneReportsProvider);
+  final medsAsync = ref.watch(medicinesProvider);
+  final reportsAsync = ref.watch(geneReportsProvider);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _HeroDashboardCard(loc: loc),
-          const SizedBox(height: 24),
-          Text(
-            loc.systemOverview,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+  return Stack(
+    children: [
+      Positioned(
+        right: -180,
+        top: 120,
+        child: Transform.rotate(
+          angle: 0.18,
+          child: _softDnaImage(
+            width: 480,
+            opacity: 0.12,
           ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final crossAxisCount = constraints.maxWidth > 1200
-                  ? 4
-                  : constraints.maxWidth > 760
-                      ? 2
-                      : 1;
+        ),
+      ),
 
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                shrinkWrap: true,
-                crossAxisSpacing: 18,
-                mainAxisSpacing: 18,
-                childAspectRatio: crossAxisCount == 1 ? 2.4 : 1.55,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  reportsAsync.when(
-                    data: (reports) {
-                      final latestReport =
-                          reports.isNotEmpty ? reports.first : null;
+      Positioned(
+        left: -180,
+        bottom: 0,
+        child: Transform.rotate(
+          angle: -0.15,
+          child: _softDnaImage(
+            width: 420,
+            opacity: 0.10,
+          ),
+        ),
+      ),
 
-                      final status = latestReport != null
-                          ? latestReport['label'].toString()
-                          : loc.noData;
+      SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _HeroDashboardCard(loc: loc),
+            const SizedBox(height: 24),
+            Text(
+              loc.systemOverview,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 18),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = constraints.maxWidth > 1200
+                    ? 4
+                    : constraints.maxWidth > 760
+                        ? 2
+                        : 1;
 
-                      final color = status.toLowerCase().contains('high')
-                          ? Colors.redAccent
-                          : Colors.green;
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  shrinkWrap: true,
+                  crossAxisSpacing: 18,
+                  mainAxisSpacing: 18,
+                  childAspectRatio: crossAxisCount == 1 ? 2.4 : 1.55,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    reportsAsync.when(
+                      data: (reports) {
+                        final latestReport =
+                            reports.isNotEmpty ? reports.first : null;
 
-                      return _DashboardMetricCard(
+                        final status = latestReport != null
+                            ? latestReport['label'].toString()
+                            : loc.noData;
+
+                        final color = status.toLowerCase().contains('high')
+                            ? Colors.redAccent
+                            : Colors.green;
+
+                        return _DashboardMetricCard(
+                          title: loc.vitalsStatus,
+                          value: status,
+                          icon: latestReport != null
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: color,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const DnaModelVisualizationScreen(),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      loading: () => _DashboardMetricCard(
                         title: loc.vitalsStatus,
-                        value: status,
-                        icon: latestReport != null
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        color: color,
+                        value: loc.loading,
+                        icon: Icons.favorite_rounded,
+                        color: Colors.grey,
+                      ),
+                      error: (err, stack) => _DashboardMetricCard(
+                        title: loc.vitalsStatus,
+                        value: loc.error,
+                        icon: Icons.error_rounded,
+                        color: Colors.orange,
+                      ),
+                    ),
+
+                    medsAsync.when(
+                      data: (meds) => _DashboardMetricCard(
+                        title: loc.meds,
+                        value: '${meds.length} Prescribed',
+                        icon: Icons.medication_rounded,
+                        color: theme.colorScheme.primary,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  const DnaModelVisualizationScreen(),
+                              builder: (_) => const MedHistoryScreen(),
                             ),
                           );
                         },
-                      );
-                    },
-                    loading: () => _DashboardMetricCard(
-                      title: loc.vitalsStatus,
-                      value: loc.loading,
-                      icon: Icons.favorite_rounded,
-                      color: Colors.grey,
+                      ),
+                      loading: () => _DashboardMetricCard(
+                        title: loc.meds,
+                        value: loc.loading,
+                        icon: Icons.medication_rounded,
+                        color: Colors.grey,
+                      ),
+                      error: (err, stack) => _DashboardMetricCard(
+                        title: loc.meds,
+                        value: loc.error,
+                        icon: Icons.error_rounded,
+                        color: Colors.orange,
+                      ),
                     ),
-                    error: (err, stack) => _DashboardMetricCard(
-                      title: loc.vitalsStatus,
-                      value: loc.error,
-                      icon: Icons.error_rounded,
-                      color: Colors.orange,
-                    ),
-                  ),
 
-                  medsAsync.when(
-                    data: (meds) => _DashboardMetricCard(
-                      title: loc.meds,
-                      value: '${meds.length} Prescribed',
-                      icon: Icons.medication_rounded,
-                      color: theme.colorScheme.primary,
+                    _DashboardMetricCard(
+                      title: loc.reports,
+                      value: 'View History',
+                      icon: Icons.folder_shared_rounded,
+                      color: Colors.purpleAccent,
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const MedHistoryScreen(),
+                            builder: (_) => const ReportsScreen(),
                           ),
                         );
                       },
                     ),
-                    loading: () => _DashboardMetricCard(
-                      title: loc.meds,
-                      value: loc.loading,
-                      icon: Icons.medication_rounded,
-                      color: Colors.grey,
+
+                    _DashboardMetricCard(
+                      title: loc.myDoctors,
+                      value: 'View & Chat',
+                      icon: Icons.medical_services_rounded,
+                      color: Colors.teal,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MyDoctorsScreen(),
+                          ),
+                        );
+                      },
                     ),
-                    error: (err, stack) => _DashboardMetricCard(
-                      title: loc.meds,
-                      value: loc.error,
-                      icon: Icons.error_rounded,
-                      color: Colors.orange,
+
+                    _DashboardMetricCard(
+                      title: 'Next Simulation',
+                      value: 'Scheduled: Feb 25',
+                      icon: Icons.science_rounded,
+                      color: Colors.deepPurpleAccent,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const TwinSimulationScreen(),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-
-                  _DashboardMetricCard(
-                    title: loc.reports,
-                    value: 'View History',
-                    icon: Icons.folder_shared_rounded,
-                    color: Colors.purpleAccent,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ReportsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  _DashboardMetricCard(
-                    title: loc.myDoctors,
-                    value: 'View & Chat',
-                    icon: Icons.medical_services_rounded,
-                    color: Colors.teal,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MyDoctorsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  _DashboardMetricCard(
-                    title: 'Next Simulation',
-                    value: 'Scheduled: Feb 25',
-                    icon: Icons.science_rounded,
-                    color: Colors.deepPurpleAccent,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const TwinSimulationScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ],
+  );
 }
-
+}
 class _HeroDashboardCard extends StatelessWidget {
   final AppLocalizations loc;
 
@@ -520,19 +547,21 @@ class _HeroDashboardCard extends StatelessWidget {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.secondary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+    gradient: const LinearGradient(
+      colors: [
+        Color(0xFF0F172A), // Deep navy
+        Color(0xFF1E3A8A), // Medical blue
+        Color(0xFF2563EB), // Bright blue
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.primary.withOpacity(0.28),
-            blurRadius: 28,
-            offset: const Offset(0, 16),
+            color: const Color(0xFF2563EB).withOpacity(0.35),
+            blurRadius: 35,
+            spreadRadius: 2,
+            offset: const Offset(0, 18),
           ),
         ],
       ),
@@ -542,10 +571,10 @@ class _HeroDashboardCard extends StatelessWidget {
             width: 68,
             height: 68,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
+              color: Colors.white.withOpacity(0.12),
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.white.withOpacity(0.22),
+                color: Colors.white.withOpacity(0.15),
               ),
             ),
             child: const Icon(
@@ -570,7 +599,7 @@ class _HeroDashboardCard extends StatelessWidget {
                 Text(
                   'Your AI-powered healthcare assistant for predictions, reports, doctors, and smart health insights.',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withOpacity(0.82),
+                    color: Colors.white.withOpacity(0.75),
                     height: 1.5,
                   ),
                 ),
@@ -646,4 +675,36 @@ class _DashboardMetricCard extends StatelessWidget {
       ),
     ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.08);
   }
+}
+  Widget _softDnaImage({
+  required double width,
+  required double opacity,
+}) {
+  return IgnorePointer(
+    child: Opacity(
+      opacity: opacity,
+      child: ShaderMask(
+        shaderCallback: (Rect bounds) {
+          return const RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [
+              Colors.white,
+              Colors.white,
+              Color(0x99FFFFFF),
+              Color(0x33FFFFFF),
+              Colors.transparent,
+            ],
+            stops: [0.0, 0.55, 0.78, 0.92, 1.0],
+          ).createShader(bounds);
+        },
+        blendMode: BlendMode.dstIn,
+        child: Image.asset(
+          'assets/images/dna_bg.png',
+          width: width,
+          fit: BoxFit.contain,
+        ),
+      ),
+    ),
+  );
 }
