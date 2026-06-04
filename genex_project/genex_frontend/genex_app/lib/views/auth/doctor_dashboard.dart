@@ -11,7 +11,6 @@ import '../doctor/user_search_view.dart';
 import '../doctor/see_accessed_patients.dart';
 import '../doctor/pending_patients_view.dart';
 import '../doctor/twin_preview_screen.dart';
-import 'package:genex_app/widgets/floating_dna_background.dart';
 import 'dart:ui';
 
 class DoctorDashboard extends ConsumerStatefulWidget {
@@ -148,7 +147,7 @@ class _DoctorDashboardState extends ConsumerState<DoctorDashboard> {
 @override
 Widget build(BuildContext context) {
   final theme = Theme.of(context);
-  final isDark = theme.brightness == Brightness.dark;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   final isDesktop = MediaQuery.of(context).size.width >= 1000;
 
   if (_isLoading) {
@@ -171,25 +170,33 @@ Widget build(BuildContext context) {
       // DNA Floating Background
       
 Positioned(
-  right: -230,
-  top: 240,
+  right: -120,
+  top: 180,
   child: Transform.rotate(
-    angle: 0.18,
+    angle: 0.15,
     child: _softDnaImage(
-      width: 560,
-      opacity: 0.22,
+      context,
+      width: 380,
+      opacity: Theme.of(context).brightness ==
+              Brightness.dark
+          ? 0.15
+          : 0.20,
     ),
   ),
 ),
 
 Positioned(
-  left: -220,
-  bottom: -80,
+  left: -120,
+  bottom: -40,
   child: Transform.rotate(
-    angle: -0.15,
+    angle: 3.14,
     child: _softDnaImage(
-      width: 480,
-      opacity: 0.16,
+      context,
+      width: 320,
+      opacity: Theme.of(context).brightness ==
+              Brightness.dark
+          ? 0.12
+          : 0.16,
     ),
   ),
 ),
@@ -365,32 +372,23 @@ Positioned(
     ],
   );
 }
-Widget _softDnaImage({
+Widget _softDnaImage(
+  BuildContext context, {
   required double width,
   required double opacity,
 }) {
+  final isDark =
+      Theme.of(context).brightness == Brightness.dark;
+
   return IgnorePointer(
     child: Opacity(
       opacity: opacity,
-      child: ShaderMask(
-        shaderCallback: (Rect bounds) {
-          return const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              Colors.transparent,
-              Colors.white,
-              Colors.white,
-              Colors.transparent,
-            ],
-            stops: [0.0, 0.15, 0.85, 1.0],
-          ).createShader(bounds);
-        },
-        blendMode: BlendMode.dstIn,
-        child: Image.asset(
-          'assets/images/dna_bg.png',
-          width: width,
-        ),
+      child: Image.asset(
+        isDark
+            ? 'assets/images/dna_dark.png'
+            : 'assets/images/dna_light.png',
+        width: width,
+        fit: BoxFit.contain,
       ),
     ),
   );

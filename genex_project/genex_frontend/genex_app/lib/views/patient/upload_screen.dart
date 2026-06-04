@@ -588,88 +588,143 @@ class _UploadScreenState extends State<UploadScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final title = _titleForType(_selectedType);
+    @override
+    Widget build(BuildContext context) {
+      final loc = AppLocalizations.of(context)!;
+      final theme = Theme.of(context);
+      final title = _titleForType(_selectedType);
 
-    return Scaffold(
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text(loc.medicalAnalysisUpload),
+        ),
+        body: Stack(
+          children: [
+            Positioned(
+              right: -180,
+              top: 140,
+              child: Transform.rotate(
+                angle: 0.18,
+                child: _softDnaImage(
+  context,
+  width: 350,
+  opacity: 0.12,
+),
+              ),
+            ),
 
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(loc.medicalAnalysisUpload),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 920),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _HeroUploadCard(
-                  title: loc.medicalAnalysisUpload,
-                  subtitle:
-                      'Upload medical files or enter lab tests to generate AI-powered health insights.',
-                ),
-                const SizedBox(height: 24),
-                _typeSelector(),
-                const SizedBox(height: 24),
-                PremiumCard(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 26,
-                              backgroundColor:
-                                  theme.colorScheme.primary.withOpacity(0.12),
-                              child: Icon(
-                                _iconForType(_selectedType),
-                                color: theme.colorScheme.primary,
+            Positioned(
+              left: -180,
+              bottom: -50,
+              child: Transform.rotate(
+                angle: -0.15,
+                child: _softDnaImage(
+  context,
+  width: 350,
+  opacity: 0.12,
+),
+              ),
+            ),
+
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 920),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _HeroUploadCard(
+                        title: loc.medicalAnalysisUpload,
+                        subtitle:
+                            'Upload medical files or enter lab tests to generate AI-powered health insights.',
+                      ),
+                      const SizedBox(height: 24),
+                      _typeSelector(),
+                      const SizedBox(height: 24),
+
+                      PremiumCard(
+                        padding: const EdgeInsets.all(24),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 26,
+                                    backgroundColor: theme.colorScheme.primary
+                                        .withOpacity(0.12),
+                                    child: Icon(
+                                      _iconForType(_selectedType),
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      style: theme.textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                title,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w900,
+                              const SizedBox(height: 10),
+
+                              Text(
+                                _instructionForType(_selectedType),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.65),
+                                  height: 1.5,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _instructionForType(_selectedType),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color:
-                                theme.colorScheme.onSurface.withOpacity(0.65),
-                            height: 1.5,
+                              const SizedBox(height: 22),
+
+                              if (_selectedType == UploadType.tests)
+                                _testsForm()
+                              else
+                                _uploadBox(loc),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 22),
-                        if (_selectedType == UploadType.tests)
-                          _testsForm()
-                        else
-                          _uploadBox(loc),
-                      ],
-                    ),
+                      ).animate().fadeIn(
+                            duration: 450.ms,
+                          ).slideY(begin: 0.08),
+                    ],
                   ),
-                ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.08),
-              ],
+                ),
+              ),
             ),
-          ),
+          ],
         ),
+      );
+    }
+Widget _softDnaImage(
+  BuildContext context, {
+  required double width,
+  required double opacity,
+}) {
+  final isDark =
+      Theme.of(context).brightness == Brightness.dark;
+
+  return IgnorePointer(
+    child: Opacity(
+      opacity: opacity,
+      child: Image.asset(
+        isDark
+            ? 'assets/images/dna_dark.png'
+            : 'assets/images/dna_light.png',
+        width: width,
+        fit: BoxFit.contain,
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _typeSelector() {
     final loc = AppLocalizations.of(context)!;

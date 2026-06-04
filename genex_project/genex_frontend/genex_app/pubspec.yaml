@@ -52,4 +52,5 @@ flutter:
     - assets/models/dnaorange.glb
     - assets/models/dnared.glb
     - assets/images/genex_logo.jpeg
-    - assets/images/dna_bg.png
+    - assets/images/dna_dark.png
+    - assets/images/dna_light.png

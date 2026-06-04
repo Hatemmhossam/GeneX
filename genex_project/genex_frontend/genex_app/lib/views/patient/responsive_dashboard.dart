@@ -350,13 +350,14 @@ Widget build(BuildContext context, WidgetRef ref) {
     children: [
       Positioned(
         right: -180,
-        top: 120,
+        top: 70,
         child: Transform.rotate(
           angle: 0.18,
-          child: _softDnaImage(
-            width: 480,
-            opacity: 0.12,
-          ),
+          child:_softDnaImage(
+  context,
+  width: 480,
+  opacity: 0.08,
+),
         ),
       ),
 
@@ -366,9 +367,10 @@ Widget build(BuildContext context, WidgetRef ref) {
         child: Transform.rotate(
           angle: -0.15,
           child: _softDnaImage(
-            width: 420,
-            opacity: 0.10,
-          ),
+  context,
+  width: 480,
+  opacity: 0.08,
+),
         ),
       ),
 
@@ -676,34 +678,23 @@ class _DashboardMetricCard extends StatelessWidget {
     ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.08);
   }
 }
-  Widget _softDnaImage({
+Widget _softDnaImage(
+  BuildContext context, {
   required double width,
   required double opacity,
 }) {
+  final isDark =
+      Theme.of(context).brightness == Brightness.dark;
+
   return IgnorePointer(
     child: Opacity(
       opacity: opacity,
-      child: ShaderMask(
-        shaderCallback: (Rect bounds) {
-          return const RadialGradient(
-            center: Alignment.center,
-            radius: 1.2,
-            colors: [
-              Colors.white,
-              Colors.white,
-              Color(0x99FFFFFF),
-              Color(0x33FFFFFF),
-              Colors.transparent,
-            ],
-            stops: [0.0, 0.55, 0.78, 0.92, 1.0],
-          ).createShader(bounds);
-        },
-        blendMode: BlendMode.dstIn,
-        child: Image.asset(
-          'assets/images/dna_bg.png',
-          width: width,
-          fit: BoxFit.contain,
-        ),
+      child: Image.asset(
+        isDark
+            ? 'assets/images/dna_dark.png'
+            : 'assets/images/dna_light.png',
+        width: width,
+        fit: BoxFit.contain,
       ),
     ),
   );
