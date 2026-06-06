@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
+
 //done
 class AboutSystemScreen extends StatelessWidget {
   const AboutSystemScreen({super.key});
@@ -12,66 +14,46 @@ class AboutSystemScreen extends StatelessWidget {
     Color? color,
   }) {
     final theme = Theme.of(context);
-
-    final isDark =
-        theme.brightness ==
-            Brightness.dark;
-
-    final cardColor =
-        color ?? theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = color ?? theme.colorScheme.primary;
 
     return Container(
-      margin:
-          const EdgeInsets.only(bottom: 16),
-      padding:
-          const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color:
-            theme.colorScheme.surface,
-        borderRadius:
-            BorderRadius.circular(14),
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: theme.dividerColor
-              .withOpacity(0.15),
+          color: theme.dividerColor.withOpacity(0.15),
         ),
         boxShadow: [
           if (!isDark)
             BoxShadow(
-              color: Colors.black
-                  .withOpacity(0.05),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
         ],
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor:
-                cardColor.withOpacity(0.12),
-            child: Icon(
-              icon,
-              color: cardColor,
-            ),
+            backgroundColor: cardColor.withOpacity(0.12),
+            child: Icon(icon, color: cardColor),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                    color: theme
-                        .colorScheme
-                        .onSurface,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -80,10 +62,7 @@ class AboutSystemScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     height: 1.4,
-                    color: theme
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.72),
+                    color: theme.colorScheme.onSurface.withOpacity(0.72),
                   ),
                 ),
               ],
@@ -94,71 +73,47 @@ class AboutSystemScreen extends StatelessWidget {
     );
   }
 
-  Widget _disclaimerCard(
-    BuildContext context,
-  ) {
+  Widget _disclaimerCard(BuildContext context) {
     final theme = Theme.of(context);
-
-    final isDark =
-        theme.brightness ==
-            Brightness.dark;
-
-    final loc =
-        AppLocalizations.of(context)!;
+    final isDark = theme.brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!;
 
     return Container(
-      margin:
-          const EdgeInsets.only(bottom: 20),
-      padding:
-          const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.red.withOpacity(0.12)
-            : Colors.red.shade50,
-        borderRadius:
-            BorderRadius.circular(14),
+        color: isDark ? Colors.red.withOpacity(0.12) : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isDark
-              ? Colors.red
-                  .withOpacity(0.35)
-              : Colors.red.shade200,
+          color: isDark ? Colors.red.withOpacity(0.35) : Colors.red.shade200,
         ),
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             Icons.warning_amber_rounded,
-            color: isDark
-                ? Colors.red.shade300
-                : Colors.red,
+            color: isDark ? Colors.red.shade300 : Colors.red,
             size: 32,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   loc.importantMedicalDisclaimer,
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                    color: isDark
-                        ? Colors.red.shade300
-                        : Colors.red,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.red.shade300 : Colors.red,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   loc.medicalDisclaimerContent,
                   style: TextStyle(
-                    color: isDark
-                        ? Colors.red.shade200
-                        : Colors.red,
+                    color: isDark ? Colors.red.shade200 : Colors.red,
                     height: 1.4,
                   ),
                 ),
@@ -170,74 +125,83 @@ class AboutSystemScreen extends StatelessWidget {
     );
   }
 
+  Widget _animatedItem(Widget child, int index) {
+    return child.animate().slideY(
+          begin: 0.06,
+          delay: (index * 70).ms,
+          duration: 320.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    final loc =
-        AppLocalizations.of(context)!;
+    final loc = AppLocalizations.of(context)!;
 
     return Scaffold(
-      backgroundColor:
-          theme.scaffoldBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           loc.aboutTheSystem,
           style: TextStyle(
-            color:
-                theme.colorScheme.onSurface,
-            fontWeight:
-                FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor:
-            theme.appBarTheme.backgroundColor,
-        foregroundColor:
-            theme.colorScheme.onSurface,
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        foregroundColor: theme.colorScheme.onSurface,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding:
-            const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionCard(
-              context: context,
-              icon: Icons.psychology,
-              title: loc.purpose,
-              content:
-                  loc.purposeContent,
-              color: Colors.teal,
+            _animatedItem(
+              _sectionCard(
+                context: context,
+                icon: Icons.psychology,
+                title: loc.purpose,
+                content: loc.purposeContent,
+                color: Colors.teal,
+              ),
+              0,
             ),
-            _sectionCard(
-              context: context,
-              icon: Icons.star,
-              title: loc.mainFeatures,
-              content:
-                  loc.mainFeaturesContent,
-              color: Colors.blue,
+            _animatedItem(
+              _sectionCard(
+                context: context,
+                icon: Icons.star,
+                title: loc.mainFeatures,
+                content: loc.mainFeaturesContent,
+                color: Colors.blue,
+              ),
+              1,
             ),
-            _sectionCard(
-              context: context,
-              icon: Icons.settings,
-              title:
-                  loc.howSystemWorks,
-              content: loc
-                  .howSystemWorksContent,
-              color: Colors.deepPurple,
+            _animatedItem(
+              _sectionCard(
+                context: context,
+                icon: Icons.settings,
+                title: loc.howSystemWorks,
+                content: loc.howSystemWorksContent,
+                color: Colors.deepPurple,
+              ),
+              2,
             ),
-            _sectionCard(
-              context: context,
-              icon:
-                  Icons.info_outline,
-              title: loc.limitations,
-              content:
-                  loc.limitationsContent,
-              color: Colors.orange,
+            _animatedItem(
+              _sectionCard(
+                context: context,
+                icon: Icons.info_outline,
+                title: loc.limitations,
+                content: loc.limitationsContent,
+                color: Colors.orange,
+              ),
+              3,
             ),
-            _disclaimerCard(context),
+            _animatedItem(
+              _disclaimerCard(context),
+              4,
+            ),
           ],
         ),
       ),

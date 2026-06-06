@@ -6,6 +6,7 @@ import 'package:genex_app/l10n/app_localizations.dart';
 import '../../widgets/loading_button.dart';
 import '../../widgets/premium_card.dart';
 import '../../core/secure_storage.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 //done 
 
 class ProfileScreen extends StatefulWidget {
@@ -239,113 +240,139 @@ Widget build(BuildContext context) {
       ],
     ),
     body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 950),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildProfileHero(),
-              const SizedBox(height: 24),
-              PremiumCard(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      loc.coreHealthMetrics,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildReadOnlyField(
-                      nameController,
-                      loc.fullName,
-                      Icons.lock_outline_rounded,
-                      loc.contactAdmin,
-                    ),
-                    const SizedBox(height: 20),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        return GridView(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount:
-                                constraints.maxWidth > 620 ? 2 : 1,
-                            crossAxisSpacing: 18,
-                            mainAxisSpacing: 18,
-                            mainAxisExtent: 90,
-                          ),
-                          children: [
-                            _buildDropdown<String>(
-                              label: loc.genderIdentity,
-                              icon: Icons.wc_outlined,
-                              value: selectedGender,
-                              items: const ['male', 'female'],
-                              onChanged: (val) {
-                                setState(() {
-                                  selectedGender = val!;
-                                });
-                              },
-                            ),
-                            _buildDropdown<int>(
-                              label: loc.currentAge,
-                              icon: Icons.calendar_today_outlined,
-                              value: selectedAge,
-                              items: List.generate(83, (i) => i + 18),
-                              onChanged: (val) {
-                                setState(() {
-                                  selectedAge = val!;
-                                });
-                              },
-                            ),
-                            _buildDropdown<int>(
-                              label: loc.patientHeight,
-                              icon: Icons.height_outlined,
-                              value: selectedHeight,
-                              items: List.generate(91, (i) => i + 120),
-                              onChanged: (val) {
-                                setState(() {
-                                  selectedHeight = val!;
-                                });
-                              },
-                              suffix: ' cm',
-                            ),
-                            _buildDropdown<int>(
-                              label: loc.bodyWeight,
-                              icon: Icons.monitor_weight_outlined,
-                              value: selectedWeight,
-                              items: List.generate(141, (i) => i + 30),
-                              onChanged: (val) {
-                                setState(() {
-                                  selectedWeight = val!;
-                                });
-                              },
-                              suffix: ' kg',
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 28),
-                    LoadingButton(
-                      loading: isSaving,
-                      onPressed: saveProfile,
-                      label: isSaving ? loc.saving : loc.confirmUpdate,
-                      icon: Icons.check_circle_outline_rounded,
-                    ),
-                  ],
-                ),
+  child: ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 950),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildProfileHero()
+              .animate()
+              .slideY(
+                begin: -0.05,
+                duration: 300.ms,
+                curve: Curves.easeOutCubic,
               ),
-            ],
-          ),
-        ),
+
+          const SizedBox(height: 24),
+
+          PremiumCard(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  loc.coreHealthMetrics,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                _buildReadOnlyField(
+                  nameController,
+                  loc.fullName,
+                  Icons.lock_outline_rounded,
+                  loc.contactAdmin,
+                ),
+
+                const SizedBox(height: 20),
+
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GridView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount:
+                            constraints.maxWidth > 620 ? 2 : 1,
+                        crossAxisSpacing: 18,
+                        mainAxisSpacing: 18,
+                        mainAxisExtent: 90,
+                      ),
+                      children: [
+                        _buildDropdown<String>(
+                          label: loc.genderIdentity,
+                          icon: Icons.wc_outlined,
+                          value: selectedGender,
+                          items: const ['male', 'female'],
+                          onChanged: (val) {
+                            setState(() {
+                              selectedGender = val!;
+                            });
+                          },
+                        ),
+
+                        _buildDropdown<int>(
+                          label: loc.currentAge,
+                          icon: Icons.calendar_today_outlined,
+                          value: selectedAge,
+                          items: List.generate(83, (i) => i + 18),
+                          onChanged: (val) {
+                            setState(() {
+                              selectedAge = val!;
+                            });
+                          },
+                        ),
+
+                        _buildDropdown<int>(
+                          label: loc.patientHeight,
+                          icon: Icons.height_outlined,
+                          value: selectedHeight,
+                          items: List.generate(91, (i) => i + 120),
+                          onChanged: (val) {
+                            setState(() {
+                              selectedHeight = val!;
+                            });
+                          },
+                          suffix: ' cm',
+                        ),
+
+                        _buildDropdown<int>(
+                          label: loc.bodyWeight,
+                          icon: Icons.monitor_weight_outlined,
+                          value: selectedWeight,
+                          items: List.generate(141, (i) => i + 30),
+                          onChanged: (val) {
+                            setState(() {
+                              selectedWeight = val!;
+                            });
+                          },
+                          suffix: ' kg',
+                        ),
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 28),
+
+                LoadingButton(
+                  loading: isSaving,
+                  onPressed: saveProfile,
+                  label: isSaving
+                      ? loc.saving
+                      : loc.confirmUpdate,
+                  icon: Icons.check_circle_outline_rounded,
+                ),
+              ],
+            ),
+          )
+                           .animate()
+              .slideY(
+                begin: 0.05,
+                delay: 80.ms,
+                duration: 320.ms,
+                curve: Curves.easeOutCubic,
+              ),
+        ],
       ),
     ),
+  ),
+),
   );
 }
   Widget _buildProfileHero() {

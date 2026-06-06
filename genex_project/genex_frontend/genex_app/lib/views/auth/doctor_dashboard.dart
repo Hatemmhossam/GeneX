@@ -186,18 +186,15 @@ Positioned(
 ),
 
 Positioned(
-  left: -120,
-  bottom: -40,
+  left: -210,
+  bottom: -90,
   child: Transform.rotate(
-    angle: 3.14,
+    angle: -0.15,
     child: _softDnaImage(
-      context,
-      width: 320,
-      opacity: Theme.of(context).brightness ==
-              Brightness.dark
-          ? 0.12
-          : 0.16,
-    ),
+  context,
+  width: 500,
+  opacity: 0.10,
+),
   ),
 ),
         SafeArea(

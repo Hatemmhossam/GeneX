@@ -510,7 +510,7 @@ Widget build(BuildContext context, WidgetRef ref) {
 
                     _DashboardMetricCard(
                       title: 'Next Simulation',
-                      value: 'Scheduled: Feb 25',
+                      value: 'Twin Simulation',
                       icon: Icons.science_rounded,
                       color: Colors.deepPurpleAccent,
                       onTap: () {
