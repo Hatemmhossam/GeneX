@@ -806,6 +806,8 @@ FEATURES = None
 
 def get_gene_model():
     global MODEL, FEATURES
+    import sklearn
+    print("RENDER SKLEARN VERSION =", sklearn.__version__, flush=True)
 
     if MODEL is None:
         print("Loading GeneX model...")
