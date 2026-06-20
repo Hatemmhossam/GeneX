@@ -10,6 +10,8 @@ from io import TextIOWrapper
 import joblib
 import matplotlib
 import numpy as np
+import torch
+import torchvision.models as models
 import pandas as pd
 import torch.nn as nn
 import torch.nn.functional as F
