@@ -819,7 +819,6 @@ def get_gene_model():
 class GeneUploadView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-    MODEL, FEATURES = get_gene_model()
     def post(self, request):
         MODEL, FEATURES = get_gene_model()
 

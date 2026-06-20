@@ -128,9 +128,9 @@ class GeneExpressionFile(models.Model):
 
 
 
-MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
-FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
-EXPLAINER = shap.Explainer(MODEL)
+#MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
+#FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
+#EXPLAINER = shap.Explainer(MODEL)
 
 class GenePredictionReport(models.Model):
     patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
