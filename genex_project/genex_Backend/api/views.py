@@ -802,13 +802,25 @@ def analyze_drug(request):
     
 print("BEFORE loading model", flush=True)
 
+MODEL = None
+FEATURES = None
 
-MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
-FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
+def get_gene_model():
+    global MODEL, FEATURES
+
+    if MODEL is None:
+        print("Loading GeneX model...")
+        MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
+
+    if FEATURES is None:
+        FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
+
+    return MODEL, FEATURES
+
 class GeneUploadView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-
+    MODEL, FEATURES = get_gene_model()
     def post(self, request):
         file = request.FILES.get("file")
 
@@ -1183,10 +1195,21 @@ class MRNetFastModel(nn.Module):
 
 
 MODEL_PATH = os.path.join(settings.BASE_DIR, "api", "ml_asssets", "best_fast_mrnet.pth")
+mri_model = None
 
-mri_model = MRNetFastModel().to(device)
-mri_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-mri_model.eval()
+def get_mri_model():
+    global mri_model
+
+    if mri_model is None:
+        print("Loading MRI model...")
+        model = MRNetFastModel().to(device)
+        model.load_state_dict(
+            torch.load(MODEL_PATH, map_location=device)
+        )
+        model.eval()
+        mri_model = model
+
+    return mri_model
 
 
 def preprocess_mri(exam, image_size=(224, 224), num_slices=16):
@@ -1294,8 +1317,8 @@ class GradCAM:
 
 
 def save_gradcam_images(axial, coronal, sagittal):
-    gradcam = GradCAM(mri_model)
-
+    model = get_mri_model()
+    gradcam = GradCAM(model)
     results = {}
     planes = {
         "axial": axial,
