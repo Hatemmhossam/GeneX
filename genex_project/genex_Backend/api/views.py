@@ -11,11 +11,8 @@ import joblib
 import matplotlib
 import numpy as np
 import pandas as pd
-import shap
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.models as models
 from firebase_admin import messaging
 from xgboost import XGBClassifier
 
@@ -822,6 +819,8 @@ class GeneUploadView(APIView):
     permission_classes = [IsAuthenticated]
     MODEL, FEATURES = get_gene_model()
     def post(self, request):
+        MODEL, FEATURES = get_gene_model()
+
         file = request.FILES.get("file")
 
         if not file:
