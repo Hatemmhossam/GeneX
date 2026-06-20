@@ -806,18 +806,16 @@ FEATURES = None
 
 def get_gene_model():
     global MODEL, FEATURES
-    import sklearn
-    print("RENDER SKLEARN VERSION =", sklearn.__version__, flush=True)
 
     if MODEL is None:
-        print("Loading MODEL...")
-        MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
-        print("MODEL loaded")
+        print("Loading MODEL file...", flush=True)
+        MODEL = joblib.load("api/ml_asssets/best_ra_xgb_model.joblib")
+        print("MODEL loaded successfully", flush=True)
 
     if FEATURES is None:
-        print("Loading FEATURES...")
-        FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
-        print("FEATURES loaded")
+        print("Loading FEATURES file...", flush=True)
+        FEATURES = joblib.load("api/ml_asssets/gene_features.joblib")
+        print("FEATURES loaded successfully", flush=True)
 
     return MODEL, FEATURES
 
