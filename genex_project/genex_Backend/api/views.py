@@ -25,7 +25,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-
+from matplotlib import pyplot as plt
 # Django REST Framework imports
 from rest_framework import generics, status, views, viewsets
 from rest_framework.decorators import (
@@ -47,6 +47,7 @@ from .models import (
     FileUpload,
     GeneExpressionFile,
     GenePredictionReport,
+    GeneReportPermissionRequest,
     MedicalTestResult,
     Medicine,
     Notification,
@@ -65,7 +66,7 @@ from .serializers import (
 )
 from .services import MLService
 from .twin_runner import clean_for_json, run_twin_runtime_for_user
-
+from django.utils import timezone
 matplotlib.use("Agg")
 
 print("\n\n🔥 RELOADING VIEWS.PY - IF YOU SEE THIS, THE NEW CODE IS ACTIVE! 🔥\n\n")
@@ -1421,3 +1422,93 @@ def save_fcm_token(request):
     request.user.save()
 
     return Response({"message": "FCM token saved successfully"})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def request_report_permission(request):
+    report_id = request.data.get('report_id')
+    doctor_id = request.data.get('doctor_id')
+
+    report = GenePredictionReport.objects.get(id=report_id)
+    doctor = User.objects.get(id=doctor_id)
+
+    GeneReportPermissionRequest.objects.create(
+        report=report,
+        patient=request.user,
+        doctor=doctor,
+        status='pending'
+    )
+
+    return Response({"message": "Permission request sent"})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def approve_report_permission(request):
+    report_id = request.data.get('report_id')
+
+    if request.user.role != 'doctor':
+        return Response(
+            {"error": "Only doctors can approve report access"},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    if not report_id:
+        return Response(
+            {"error": "report_id is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        permission_request = GeneReportPermissionRequest.objects.filter(
+            report_id=report_id,
+            doctor=request.user,
+            status='pending'
+        ).latest('requested_at')
+
+        permission_request.status = 'approved'
+        permission_request.responded_at = timezone.now()
+        permission_request.save()
+
+        return Response(
+            {
+                "message": "Report access approved successfully",
+                "status": "approved"
+            },
+            status=status.HTTP_200_OK
+        )
+
+    except GeneReportPermissionRequest.DoesNotExist:
+        return Response(
+            {"error": "No pending permission request found for this report"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+        
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pending_report_permissions(request):
+    if request.user.role != 'doctor':
+        return Response(
+            {"error": "Only doctors can view pending requests"},
+            status=403
+        )
+
+    requests = GeneReportPermissionRequest.objects.filter(
+        doctor=request.user,
+        status='pending'
+    ).order_by('-requested_at')
+
+    data = []
+
+    for req in requests:
+        data.append({
+            "id": req.id,
+            "report_id": req.report.id,
+            "patient_id": req.patient.id,
+            "patient_username": req.patient.username,
+            "status": req.status,
+            "requested_at": req.requested_at,
+        })
+
+    return Response(data)

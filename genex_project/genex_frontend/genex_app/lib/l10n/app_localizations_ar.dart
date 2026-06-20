@@ -57,8 +57,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get welcomeBack => 'مرحبًا بعودتك!';
 
   @override
-  String get welcomeBackMessage =>
-      'مرحبًا بعودتك! نحن سعداء جدًا بوجودك هنا. من الرائع رؤيتك مرة أخرى. نتمنى أن تكون بخير.';
+  String get welcomeBackMessage => 'مرحبًا بعودتك! نحن سعداء جدًا بوجودك هنا. من الرائع رؤيتك مرة أخرى. نتمنى أن تكون بخير.';
 
   @override
   String get noAccountYet => 'ليس لديك حساب؟ إنشاء حساب.';
@@ -181,8 +180,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get confirmLogout => 'تأكيد تسجيل الخروج';
 
   @override
-  String get logoutMessage =>
-      'هل أنت متأكد أنك تريد تسجيل الخروج من بوابة GeneX؟';
+  String get logoutMessage => 'هل أنت متأكد أنك تريد تسجيل الخروج من بوابة GeneX؟';
 
   @override
   String get cancel => 'إلغاء';
@@ -209,8 +207,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get startSearchingPatients => 'ابدأ البحث عن المرضى';
 
   @override
-  String get typeUsernameToSearch =>
-      'اكتب اسم المستخدم في خانة البحث بالأعلى لعرض المرضى المطابقين';
+  String get typeUsernameToSearch => 'اكتب اسم المستخدم في خانة البحث بالأعلى لعرض المرضى المطابقين';
 
   @override
   String get patientRecords => 'سجلات المريض';
@@ -264,8 +261,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noEvaluationYet => 'لا توجد نتائج بعد';
 
   @override
-  String get runSimulationMessage =>
-      'قم بتشغيل المحاكاة وستظهر النتائج هنا بطريقة أوضح.';
+  String get runSimulationMessage => 'قم بتشغيل المحاكاة وستظهر النتائج هنا بطريقة أوضح.';
 
   @override
   String get noAuthenticationTokenFound => 'لم يتم العثور على رمز تسجيل الدخول';
@@ -348,8 +344,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get geneExpressionReports => 'تقارير التعبير الجيني';
 
   @override
-  String get noGeneExpressionReportsRecorded =>
-      'لا توجد تقارير تعبير جيني مسجلة';
+  String get noGeneExpressionReportsRecorded => 'لا توجد تقارير تعبير جيني مسجلة';
 
   @override
   String get unknownResult => 'نتيجة غير معروفة';
@@ -397,8 +392,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get refresh => 'تحديث';
 
   @override
-  String get doctorDashboardSubtitle =>
-      'قم بإدارة المرضى المقبولين وفتح السجلات الطبية بسرعة.';
+  String get doctorDashboardSubtitle => 'قم بإدارة المرضى المقبولين وفتح السجلات الطبية بسرعة.';
 
   @override
   String get patients => 'مريض';
@@ -464,8 +458,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get searchPatientsInstruction =>
-      'اكتب اسم المستخدم في حقل البحث بالأعلى لرؤية المرضى المطابقين.';
+  String get searchPatientsInstruction => 'اكتب اسم المستخدم في حقل البحث بالأعلى لرؤية المرضى المطابقين.';
 
   @override
   String get noUsername => '(لا يوجد اسم مستخدم)';
@@ -485,8 +478,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get optional => 'اختياري';
 
   @override
-  String get uploadPatientDescription =>
-      'قم برفع ملف المريض وإدخال الأدوية المحددة ثم استعرض النتائج بطريقة منظمة وأكثر وضوحًا.';
+  String get uploadPatientDescription => 'قم برفع ملف المريض وإدخال الأدوية المحددة ثم استعرض النتائج بطريقة منظمة وأكثر وضوحًا.';
 
   @override
   String get bestDrug => 'أفضل دواء';
@@ -561,8 +553,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get dailySymptomTracker => 'متابعة الأعراض اليومية';
 
   @override
-  String get dailySymptomTrackerDescription =>
-      'يساعد تتبع الأعراض يوميًا الذكاء الاصطناعي في حساب درجة الخطورة بدقة.';
+  String get dailySymptomTrackerDescription => 'يساعد تتبع الأعراض يوميًا الذكاء الاصطناعي في حساب درجة الخطورة بدقة.';
 
   @override
   String get whatAreYouExperiencing => 'ما الأعراض التي تشعر بها؟';
@@ -607,36 +598,31 @@ class AppLocalizationsAr extends AppLocalizations {
   String get purpose => 'الهدف';
 
   @override
-  String get purposeContent =>
-      'تم تصميم هذا النظام لمساعدة المرضى في عملية التشخيص وتوفير تواصل سريع مع الأطباء. يمكن للمرضى الوصول إلى الملاحظات والوصفات التي يدخلها الأطباء.';
+  String get purposeContent => 'تم تصميم هذا النظام لمساعدة المرضى في عملية التشخيص وتوفير تواصل سريع مع الأطباء. يمكن للمرضى الوصول إلى الملاحظات والوصفات التي يدخلها الأطباء.';
 
   @override
   String get mainFeatures => 'الميزات الرئيسية';
 
   @override
-  String get mainFeaturesContent =>
-      '• إدخال بيانات المرضى بسهولة\n• يمكن للأطباء الوصول إلى بيانات المرضى وإدخال الوصفات الطبية\n• يمكن للمرضى متابعة جميع الأدوية المستخدمة\n• استيراد السجل الطبي لتنظيم جميع المعلومات المتعلقة بالأدوية والعلاجات';
+  String get mainFeaturesContent => '• إدخال بيانات المرضى بسهولة\n• يمكن للأطباء الوصول إلى بيانات المرضى وإدخال الوصفات الطبية\n• يمكن للمرضى متابعة جميع الأدوية المستخدمة\n• استيراد السجل الطبي لتنظيم جميع المعلومات المتعلقة بالأدوية والعلاجات';
 
   @override
   String get howSystemWorks => 'كيفية عمل النظام';
 
   @override
-  String get howSystemWorksContent =>
-      'يعمل النظام من خلال استيراد ملفات المرضى، مما يسمح للأطباء بعرض تقارير المرضى واختيار أفضل الأدوية. تم تصميمه لتقديم إرشادات دقيقة في اقتراح الأدوية.';
+  String get howSystemWorksContent => 'يعمل النظام من خلال استيراد ملفات المرضى، مما يسمح للأطباء بعرض تقارير المرضى واختيار أفضل الأدوية. تم تصميمه لتقديم إرشادات دقيقة في اقتراح الأدوية.';
 
   @override
   String get limitations => 'القيود';
 
   @override
-  String get limitationsContent =>
-      'يوفر هذا النظام المساعدة وتنظيم المعلومات الطبية، لكنه لا يمكن أن يحل محل الاستشارة الطبية المتخصصة. التوصيات المقدمة داعمة فقط ويجب دائمًا مراجعتها من قبل طبيب مؤهل.';
+  String get limitationsContent => 'يوفر هذا النظام المساعدة وتنظيم المعلومات الطبية، لكنه لا يمكن أن يحل محل الاستشارة الطبية المتخصصة. التوصيات المقدمة داعمة فقط ويجب دائمًا مراجعتها من قبل طبيب مؤهل.';
 
   @override
   String get importantMedicalDisclaimer => 'إخلاء مسؤولية طبية هام';
 
   @override
-  String get medicalDisclaimerContent =>
-      'هذا التطبيق ليس بديلاً عن الرعاية الطبية المتخصصة. يساعد المرضى في تنظيم تاريخهم الطبي وتتبع الأدوية والتواصل مع الأطباء، لكنه لا يستطيع تشخيص أو علاج أي حالة مرضية. يجب دائمًا استشارة طبيب مؤهل قبل اتخاذ أي قرار طبي.';
+  String get medicalDisclaimerContent => 'هذا التطبيق ليس بديلاً عن الرعاية الطبية المتخصصة. يساعد المرضى في تنظيم تاريخهم الطبي وتتبع الأدوية والتواصل مع الأطباء، لكنه لا يستطيع تشخيص أو علاج أي حالة مرضية. يجب دائمًا استشارة طبيب مؤهل قبل اتخاذ أي قرار طبي.';
 
   @override
   String get dnaModelVisualization => 'عرض نموذج الحمض النووي';
@@ -785,8 +771,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noGeneImportanceData => 'لا توجد بيانات لأهمية الجينات';
 
   @override
-  String get logoutConfirmationMessage =>
-      'هل أنت متأكد أنك تريد تسجيل الخروج من بوابة GeneX؟';
+  String get logoutConfirmationMessage => 'هل أنت متأكد أنك تريد تسجيل الخروج من بوابة GeneX؟';
 
   @override
   String get overview => 'نظرة عامة';
@@ -864,8 +849,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get uploadVCFInstruction => 'يرجى رفع ملف VCF الخاص بك.';
 
   @override
-  String get uploadGeneExpressionInstruction =>
-      'يرجى رفع ملف التعبير الجيني الخاص بك.';
+  String get uploadGeneExpressionInstruction => 'يرجى رفع ملف التعبير الجيني الخاص بك.';
 
   @override
   String get uploadMRIInstruction => 'يرجى رفع ملف الرنين المغناطيسي الخاص بك.';

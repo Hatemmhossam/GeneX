@@ -57,8 +57,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcomeBack => 'Welcome back!';
 
   @override
-  String get welcomeBackMessage =>
-      'Welcome back! We are so happy to have you here. It\'s great to see you again. We hope you are safe.';
+  String get welcomeBackMessage => 'Welcome back! We are so happy to have you here. It\'s great to see you again. We hope you are safe.';
 
   @override
   String get noAccountYet => 'No account yet? Sign up.';
@@ -181,8 +180,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirmLogout => 'Confirm Logout';
 
   @override
-  String get logoutMessage =>
-      'Are you sure you want to log out of the GeneX portal?';
+  String get logoutMessage => 'Are you sure you want to log out of the GeneX portal?';
 
   @override
   String get cancel => 'Cancel';
@@ -209,8 +207,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get startSearchingPatients => 'Start searching for patients';
 
   @override
-  String get typeUsernameToSearch =>
-      'Type a username in the search field above to see matching patients';
+  String get typeUsernameToSearch => 'Type a username in the search field above to see matching patients';
 
   @override
   String get patientRecords => 'Patient Records';
@@ -219,8 +216,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get patientMedicalHistory => 'Patient Medical History';
 
   @override
-  String get reviewPatientHistory =>
-      'Review patient medical records and reports';
+  String get reviewPatientHistory => 'Review patient medical records and reports';
 
   @override
   String get chatWithPatient => 'Chat with Patient';
@@ -265,8 +261,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noEvaluationYet => 'No evaluation yet';
 
   @override
-  String get runSimulationMessage =>
-      'Run the simulation and the results will appear here in a more readable format.';
+  String get runSimulationMessage => 'Run the simulation and the results will appear here in a more readable format.';
 
   @override
   String get noAuthenticationTokenFound => 'No authentication token found';
@@ -349,8 +344,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get geneExpressionReports => 'Gene Expression Reports';
 
   @override
-  String get noGeneExpressionReportsRecorded =>
-      'No gene expression reports recorded';
+  String get noGeneExpressionReportsRecorded => 'No gene expression reports recorded';
 
   @override
   String get unknownResult => 'Unknown result';
@@ -398,8 +392,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refresh => 'Refresh';
 
   @override
-  String get doctorDashboardSubtitle =>
-      'Manage your accepted patients and open their medical records quickly.';
+  String get doctorDashboardSubtitle => 'Manage your accepted patients and open their medical records quickly.';
 
   @override
   String get patients => 'patients';
@@ -426,8 +419,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noAcceptedPatients => 'No accepted patients yet';
 
   @override
-  String get patientsWillAppearHere =>
-      'Once patients are assigned and accepted, you’ll see them here.';
+  String get patientsWillAppearHere => 'Once patients are assigned and accepted, you’ll see them here.';
 
   @override
   String get noPatientsMatchSearch => 'No patients match your search.';
@@ -466,8 +458,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get searchPatientsInstruction =>
-      'Type a username in the search field above to see matching patients.';
+  String get searchPatientsInstruction => 'Type a username in the search field above to see matching patients.';
 
   @override
   String get noUsername => '(no username)';
@@ -487,8 +478,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get optional => 'Optional';
 
   @override
-  String get uploadPatientDescription =>
-      'Upload a patient file, enter the selected drug(s), and review the result in a cleaner structured layout.';
+  String get uploadPatientDescription => 'Upload a patient file, enter the selected drug(s), and review the result in a cleaner structured layout.';
 
   @override
   String get bestDrug => 'Best Drug';
@@ -518,8 +508,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get checkInteraction => 'Check Interaction';
 
   @override
-  String get interactionResultPlaceholder =>
-      'The interaction result will appear here.';
+  String get interactionResultPlaceholder => 'The interaction result will appear here.';
 
   @override
   String get saveReport => 'Save Report';
@@ -564,8 +553,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dailySymptomTracker => 'Daily Symptom Tracker';
 
   @override
-  String get dailySymptomTrackerDescription =>
-      'Tracking symptoms daily helps our AI calculate your risk score accurately.';
+  String get dailySymptomTrackerDescription => 'Tracking symptoms daily helps our AI calculate your risk score accurately.';
 
   @override
   String get whatAreYouExperiencing => 'What are you experiencing?';
@@ -610,36 +598,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get purpose => 'Purpose';
 
   @override
-  String get purposeContent =>
-      'This system is designed to help patients with the diagnosis process and provide quick connection with their doctors. Patients can access the descriptions and notes entered by their doctors.';
+  String get purposeContent => 'This system is designed to help patients with the diagnosis process and provide quick connection with their doctors. Patients can access the descriptions and notes entered by their doctors.';
 
   @override
   String get mainFeatures => 'Main Features';
 
   @override
-  String get mainFeaturesContent =>
-      '• Easy data entry for patients\n• Doctors can access patient data and enter prescriptions\n• Patients can track all taken medications\n• Import medical history to organize all information about medications and treatments';
+  String get mainFeaturesContent => '• Easy data entry for patients\n• Doctors can access patient data and enter prescriptions\n• Patients can track all taken medications\n• Import medical history to organize all information about medications and treatments';
 
   @override
   String get howSystemWorks => 'How the System Works';
 
   @override
-  String get howSystemWorksContent =>
-      'The system works by importing patient files, allowing doctors to view patient reports and select the best medications. It is designed to provide guidance with high accuracy in medication suggestions.';
+  String get howSystemWorksContent => 'The system works by importing patient files, allowing doctors to view patient reports and select the best medications. It is designed to provide guidance with high accuracy in medication suggestions.';
 
   @override
   String get limitations => 'Limitations';
 
   @override
-  String get limitationsContent =>
-      'This system provides assistance and organization for medical information, but it cannot replace professional medical advice. The recommendations are supportive and should always be verified by a qualified doctor.';
+  String get limitationsContent => 'This system provides assistance and organization for medical information, but it cannot replace professional medical advice. The recommendations are supportive and should always be verified by a qualified doctor.';
 
   @override
   String get importantMedicalDisclaimer => 'Important Medical Disclaimer';
 
   @override
-  String get medicalDisclaimerContent =>
-      'This application is NOT a replacement for professional medical care. It helps patients organize their medical history, track medications, and communicate with their doctors, but it cannot diagnose or treat any condition. Always consult a qualified physician before making medical decisions.';
+  String get medicalDisclaimerContent => 'This application is NOT a replacement for professional medical care. It helps patients organize their medical history, track medications, and communicate with their doctors, but it cannot diagnose or treat any condition. Always consult a qualified physician before making medical decisions.';
 
   @override
   String get dnaModelVisualization => 'DNA Model Visualization';
@@ -729,8 +712,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteMedicine => 'Delete Medicine';
 
   @override
-  String get removeMedicineQuestion =>
-      'Are you sure you want to remove this medicine?';
+  String get removeMedicineQuestion => 'Are you sure you want to remove this medicine?';
 
   @override
   String get delete => 'Delete';
@@ -783,15 +765,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get topGeneticDrivers => 'Top Genetic Drivers (SHAP)';
 
   @override
-  String get geneImpactDescription =>
-      'Impact of specific genes on this prediction';
+  String get geneImpactDescription => 'Impact of specific genes on this prediction';
 
   @override
   String get noGeneImportanceData => 'No gene importance data available';
 
   @override
-  String get logoutConfirmationMessage =>
-      'Are you sure you want to log out of the GeneX portal?';
+  String get logoutConfirmationMessage => 'Are you sure you want to log out of the GeneX portal?';
 
   @override
   String get overview => 'Overview';
@@ -869,8 +849,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uploadVCFInstruction => 'Please upload your VCF file.';
 
   @override
-  String get uploadGeneExpressionInstruction =>
-      'Please upload your Gene Expression file.';
+  String get uploadGeneExpressionInstruction => 'Please upload your Gene Expression file.';
 
   @override
   String get uploadMRIInstruction => 'Please upload your MRI.';

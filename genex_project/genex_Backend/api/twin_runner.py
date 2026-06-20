@@ -7,6 +7,8 @@ import joblib
 import requests
 import math
 
+from .xai import run_xai_analysis
+
 from api.digital_twin import (
     DeepDenoisingAE,
     DigitalTwin,
@@ -386,7 +388,95 @@ def clean_for_json(value):
 
     return value
 
+def build_xai_summary(
+    model,
+    twin,
+    patient_tensor,
+    patient_vec,
+    gene_cols,
+    pathways,
+    best_recommendation
+):
+    if not best_recommendation:
+        return {
+            "available": False,
+            "message": "No best recommendation available for XAI analysis."
+        }
 
+    if "drug_pair" in best_recommendation:
+        best_drug = " + ".join(best_recommendation["drug_pair"])
+    else:
+        best_drug = (
+            best_recommendation.get("drug")
+            or best_recommendation.get("drug_name")
+            or "Selected drug"
+        )
+
+    try:
+        patient_array = patient_tensor.detach().cpu().numpy()
+
+        X_for_xai = pd.DataFrame(
+            patient_array,
+            columns=gene_cols
+        )
+
+        X_for_xai = X_for_xai.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+        patient_vec_safe = patient_vec.copy()
+        patient_vec_safe.index = patient_vec_safe.index.astype(str).str.upper()
+        patient_vec_safe = pd.to_numeric(patient_vec_safe, errors="coerce")
+        patient_vec_safe = patient_vec_safe.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+        def predict_fn(data):
+            arr = np.asarray(data, dtype=np.float32)
+            arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+
+            outputs = []
+
+            for row in arr:
+                row_tensor = torch.tensor(
+                    row.reshape(1, -1),
+                    dtype=torch.float32
+                )
+
+                with torch.no_grad():
+                    score = twin.calculate_risk(
+                        model,
+                        row_tensor
+                    ).item()
+
+                if np.isnan(score) or np.isinf(score):
+                    score = 0.0
+
+                outputs.append(float(score))
+
+            return np.array(outputs)
+
+        xai_result = run_xai_analysis(
+            model=predict_fn,
+            X=X_for_xai,
+            patient_vec=patient_vec_safe,
+            pathways=pathways,
+            best_drug=best_drug
+        )
+
+        return clean_for_json({
+            "available": True,
+            "best_drug": best_drug,
+            "top_genes": xai_result.get("top_genes", []),
+            "top_pathways": xai_result.get("top_pathways", []),
+            "reason_parts": xai_result.get("reason_parts", []),
+            "final_explanation": xai_result.get("final_explanation", ""),
+        })
+
+    except Exception as e:
+        print("⚠️ XAI analysis failed:", str(e))
+
+        return {
+            "available": False,
+            "best_drug": best_drug,
+            "message": f"XAI explanation could not be generated: {str(e)}"
+        }
 def run_twin_runtime_for_user(user, drugs):
     if not getattr(user, "current_gene_file", None):
         raise ValueError("No active gene expression file found for this user.")
@@ -545,12 +635,25 @@ def run_twin_runtime_for_user(user, drugs):
         max(all_options, key=lambda x: x["risk_reduction_pct"])
         if all_options else None
     )
-
+    xai_summary = build_xai_summary(
+    model=model,
+    twin=twin,
+    patient_tensor=patient_tensor,
+    patient_vec=patient_vec,
+    gene_cols=gene_cols,
+    pathways=PATHWAYS,
+    best_recommendation=best_recommendation
+)
     rank_path = os.path.join(ARTIFACT_DIR, "fused_single.csv")
 
     if os.path.exists(rank_path):
         df_rank = pd.read_csv(rank_path)
-        fusion_df = fuse_results(single_results, pair_results, df_rank)
+        fusion_df = fuse_results(
+    single_results=single_results,
+    pair_results=pair_results,
+    df_rank=df_rank,
+    input_drugs=drugs
+)
         fusion_results = clean_for_json(fusion_df.to_dict(orient="records"))
     else:
         fusion_results = []
@@ -563,6 +666,7 @@ def run_twin_runtime_for_user(user, drugs):
         "pair_results": pair_results,
         "fusion_results": fusion_results,
         "best_recommendation": best_recommendation,
+        "xai_summary": xai_summary,
     })
 
 
@@ -581,11 +685,15 @@ class FusionConfig:
     w_pair_bonus = 0.10
 
 
-def fuse_results(single_results, pair_results, df_rank):
+def fuse_results(single_results, pair_results, df_rank, input_drugs=None):
     """
     Combines ranking model score + TwinSimulation score + pair bonus.
+    Returns only the drugs selected/searched by the user if input_drugs is provided.
+
     df_rank should contain at least:
-    drug_name, final_score, score_conf
+    drug_name or drug_name_norm
+    final_score
+    score_conf
     """
 
     if df_rank is None or df_rank.empty:
@@ -593,20 +701,51 @@ def fuse_results(single_results, pair_results, df_rank):
 
     rank_map = df_rank.copy()
 
+    # =========================
+    # NORMALIZE DRUG NAME COLUMN
+    # =========================
     if "drug_name" not in rank_map.columns:
-        raise ValueError("df_rank must contain drug_name column")
+        if "drug_name_norm" in rank_map.columns:
+            rank_map["drug_name"] = rank_map["drug_name_norm"]
+        elif "drug" in rank_map.columns:
+            rank_map["drug_name"] = rank_map["drug"]
+        else:
+            raise ValueError("df_rank must contain drug_name, drug_name_norm, or drug column")
 
-    rank_map["drug_name"] = rank_map["drug_name"].astype(str).str.strip().str.lower()
+    rank_map["drug_name"] = (
+        rank_map["drug_name"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
 
+    # =========================
+    # REQUIRED SCORE COLUMNS
+    # =========================
     if "final_score" not in rank_map.columns:
         rank_map["final_score"] = 0
 
     if "score_conf" not in rank_map.columns:
         rank_map["score_conf"] = 0
 
+    rank_map["final_score"] = pd.to_numeric(
+        rank_map["final_score"],
+        errors="coerce"
+    ).fillna(0)
+
+    rank_map["score_conf"] = pd.to_numeric(
+        rank_map["score_conf"],
+        errors="coerce"
+    ).fillna(0)
+
+    # Important:
+    # Calculate minmax BEFORE filtering, so one selected drug does not always become 0.
     rank_map["rank_score"] = minmax(rank_map["final_score"])
     rank_map["conf_score"] = minmax(rank_map["score_conf"])
 
+    # =========================
+    # SINGLE TWIN RESULTS
+    # =========================
     valid_single_results = [
         item for item in single_results
         if "risk_reduction_pct" in item
@@ -615,18 +754,58 @@ def fuse_results(single_results, pair_results, df_rank):
     single_df = pd.DataFrame(valid_single_results)
 
     if not single_df.empty:
-        single_df["drug_name"] = single_df["drug_name"].astype(str).str.strip().str.lower()
-        single_df["twin_score"] = minmax(single_df["risk_reduction_pct"])
-    else:
-        single_df = pd.DataFrame(columns=["drug_name", "twin_score"])
+        single_df["drug_name"] = (
+            single_df["drug_name"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+        )
 
+        single_df["risk_reduction_pct"] = pd.to_numeric(
+            single_df["risk_reduction_pct"],
+            errors="coerce"
+        ).fillna(0)
+
+        single_df["twin_score"] = minmax(single_df["risk_reduction_pct"])
+
+        single_keep_cols = [
+            "drug_name",
+            "risk_reduction_pct",
+            "twin_score",
+            "pathway_hits",
+            "valid_targets",
+        ]
+
+        single_df = single_df[
+            [col for col in single_keep_cols if col in single_df.columns]
+        ]
+
+    else:
+        single_df = pd.DataFrame(
+            columns=["drug_name", "risk_reduction_pct", "twin_score"]
+        )
+
+    # =========================
+    # PAIR / COMBINATION BONUS
+    # =========================
     pair_df = pd.DataFrame(pair_results)
     pair_expanded = []
 
     if not pair_df.empty and "risk_reduction_pct" in pair_df.columns:
+        pair_df["risk_reduction_pct"] = pd.to_numeric(
+            pair_df["risk_reduction_pct"],
+            errors="coerce"
+        ).fillna(0)
+
         pair_df["pair_score"] = minmax(pair_df["risk_reduction_pct"])
 
         for _, r in pair_df.iterrows():
+            if "drug_pair" not in r or not isinstance(r["drug_pair"], list):
+                continue
+
+            if len(r["drug_pair"]) < 2:
+                continue
+
             drug_a, drug_b = r["drug_pair"]
 
             pair_expanded.append({
@@ -649,12 +828,26 @@ def fuse_results(single_results, pair_results, df_rank):
     else:
         pair_bonus_df = pd.DataFrame(columns=["drug_name", "pair_bonus"])
 
+    # =========================
+    # MERGE SCORES
+    # =========================
     merged = rank_map.merge(single_df, on="drug_name", how="left")
     merged = merged.merge(pair_bonus_df, on="drug_name", how="left")
 
     merged["twin_score"] = merged["twin_score"].fillna(0)
     merged["pair_bonus"] = merged["pair_bonus"].fillna(0)
 
+    if "risk_reduction_pct" not in merged.columns:
+        merged["risk_reduction_pct"] = 0
+
+    merged["risk_reduction_pct"] = pd.to_numeric(
+        merged["risk_reduction_pct"],
+        errors="coerce"
+    ).fillna(0)
+
+    # =========================
+    # FUSION SCORE
+    # =========================
     cfg = FusionConfig()
 
     merged["fusion_score"] = (
@@ -663,5 +856,45 @@ def fuse_results(single_results, pair_results, df_rank):
         cfg.w_pair_bonus * merged["pair_bonus"] +
         cfg.w_conf * merged["conf_score"]
     )
+
+    # =========================
+    # FILTER ONLY USER SEARCHED DRUGS
+    # =========================
+    if input_drugs:
+        input_drugs_norm = [
+            str(drug).strip().lower()
+            for drug in input_drugs
+            if str(drug).strip()
+        ]
+
+        merged = merged[
+            merged["drug_name"].isin(input_drugs_norm)
+        ]
+
+    # =========================
+    # RETURN ONLY USEFUL COLUMNS
+    # =========================
+    useful_cols = [
+        "drug_name",
+        "fusion_score",
+        "final_score",
+        "rank_score",
+        "score_conf",
+        "conf_score",
+        "risk_reduction_pct",
+        "twin_score",
+        "pair_bonus",
+        "pathway_hits",
+        "valid_targets",
+        "top_pathway",
+        "pathway_coverage_score",
+    ]
+
+    existing_cols = [
+        col for col in useful_cols
+        if col in merged.columns
+    ]
+
+    merged = merged[existing_cols]
 
     return merged.sort_values("fusion_score", ascending=False)

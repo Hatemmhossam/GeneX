@@ -8,7 +8,9 @@ import 'package:genex_app/l10n/app_localizations.dart';
 //done
 
 class MyDoctorsScreen extends ConsumerStatefulWidget {
-  const MyDoctorsScreen({super.key});
+  final int? reportId;
+
+  const MyDoctorsScreen({super.key, this.reportId});
 
   @override
   ConsumerState<MyDoctorsScreen> createState() => _MyDoctorsScreenState();
@@ -73,6 +75,8 @@ class _MyDoctorsScreenState extends ConsumerState<MyDoctorsScreen> {
             receiverName: doctor.doctorName.isNotEmpty
                 ? doctor.doctorName
                 : doctor.doctorUsername,
+            reportId: widget.reportId,
+            doctorId: doctor.doctorId,
           ),
         ),
       );
@@ -80,11 +84,7 @@ class _MyDoctorsScreenState extends ConsumerState<MyDoctorsScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            loc.failedToOpenChat(e.toString()),
-          ),
-        ),
+        SnackBar(content: Text(loc.failedToOpenChat(e.toString()))),
       );
     }
   }
@@ -109,82 +109,79 @@ class _MyDoctorsScreenState extends ConsumerState<MyDoctorsScreen> {
         ),
       ),
       body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : error != null
-              ? Center(
-                  child: Text(
-                    error!,
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
+          ? Center(
+              child: Text(
+                error!,
+                style: TextStyle(color: theme.colorScheme.onSurface),
+              ),
+            )
+          : doctors.isEmpty
+          ? Center(
+              child: Text(
+                loc.noAssignedDoctorsFound,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: doctors.length,
+              itemBuilder: (context, index) {
+                final doctor = doctors[index];
+
+                return Card(
+                  color: theme.colorScheme.surface,
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(
+                      color: theme.dividerColor.withOpacity(0.15),
                     ),
                   ),
-                )
-              : doctors.isEmpty
-                  ? Center(
-                      child: Text(
-                        loc.noAssignedDoctorsFound,
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
-                        ),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: theme.colorScheme.primary.withOpacity(
+                        0.12,
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: doctors.length,
-                      itemBuilder: (context, index) {
-                        final doctor = doctors[index];
-
-                        return Card(
-                          color: theme.colorScheme.surface,
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(
-                              color: theme.dividerColor.withOpacity(0.15),
-                            ),
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  theme.colorScheme.primary.withOpacity(0.12),
-                              child: Icon(
-                                Icons.medical_services_outlined,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            title: Text(
-                              doctor.doctorName.isNotEmpty
-                                  ? doctor.doctorName
-                                  : doctor.doctorUsername,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              doctor.doctorUsername,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface.withOpacity(0.65),
-                              ),
-                            ),
-                            trailing: ElevatedButton.icon(
-                              onPressed: () => _openChat(doctor),
-                              icon: const Icon(Icons.chat_bubble_outline),
-                              label: Text(loc.chat),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.primary,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                      child: Icon(
+                        Icons.medical_services_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
+                    title: Text(
+                      doctor.doctorName.isNotEmpty
+                          ? doctor.doctorName
+                          : doctor.doctorUsername,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      doctor.doctorUsername,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withOpacity(0.65),
+                      ),
+                    ),
+                    trailing: ElevatedButton.icon(
+                      onPressed: () => _openChat(doctor),
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: Text(loc.chat),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

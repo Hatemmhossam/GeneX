@@ -54,11 +54,11 @@ def simple_rule_based_explanation(row, prediction, confidence):
 
     return explanation
 
-
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
-def predict_xai(request):
+def predict_xai(request): #save to database and call model
+
     try:
         data = request.data
         user = request.user

@@ -35,7 +35,7 @@ migrate_working_dir/
 /build/
 /coverage/
 .metadata
-
+genex_project/genex_Backend/firebase-admin-sdk.json
 # Symbolication related
 app.*.symbols
 

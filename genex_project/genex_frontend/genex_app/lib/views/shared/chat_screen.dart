@@ -1,8 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:genex_app/l10n/app_localizations.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../models/chat_message_model.dart';
 import '../../viewmodels/providers.dart';
@@ -10,11 +16,15 @@ import '../../viewmodels/providers.dart';
 class ChatScreen extends ConsumerStatefulWidget {
   final int conversationId;
   final String receiverName;
+  final int? reportId;
+  final int? doctorId;
 
   const ChatScreen({
     super.key,
     required this.conversationId,
     required this.receiverName,
+    this.reportId,
+    this.doctorId,
   });
 
   @override
@@ -22,16 +32,24 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
+  final FlutterTts _flutterTts = FlutterTts();
+  final stt.SpeechToText _speech = stt.SpeechToText();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   WebSocketChannel? _channel;
+  StreamSubscription? _subscription;
+
   List<ChatMessageModel> messages = [];
 
   bool isLoading = true;
+  bool isSendingAttachment = false;
+  bool _isListening = false;
+
   String? error;
   String? currentUserId;
   String? currentUserRole;
+  List<dynamic> pendingRequests = [];
 
   final List<String> quickReplies = [
     'Please upload your latest report.',
@@ -49,16 +67,91 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _initChat();
   }
 
+  Future<void> _loadPendingRequests() async {
+    if (!_isDoctor) return;
+
+    final chatService = ref.read(chatServiceProvider);
+    final result = await chatService.getPendingReportPermissions();
+
+    if (!mounted) return;
+
+    setState(() {
+      pendingRequests = result;
+    });
+  }
+
+  Future<void> _requestReportPermission() async {
+    try {
+      final chatService = ref.read(chatServiceProvider);
+
+      await chatService.requestReportPermission(
+        reportId: widget.reportId!,
+        doctorId: widget.doctorId!,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Permission request sent to doctor")),
+      );
+
+      _messageController.text =
+          "I would like permission to view my genetic analysis report.";
+      _sendMessage();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to send request: $e")));
+    }
+  }
+
+  Future<void> _approveReportPermission(int reportId) async {
+    try {
+      final chatService = ref.read(chatServiceProvider);
+
+      await chatService.approveReportPermission(reportId: reportId);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Report access approved")));
+
+      setState(() {
+        pendingRequests.removeWhere((r) => r['report_id'] == reportId);
+      });
+
+      _messageController.text =
+          "I approved your request. You can now view your genetic analysis report.";
+      _sendMessage();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to approve request: $e")));
+    }
+  }
+
   Future<void> _initChat() async {
     try {
       final authState = ref.read(authViewModelProvider);
+      final chatService = ref.read(chatServiceProvider);
+
       currentUserId = authState.user?.id?.toString();
       currentUserRole = authState.user?.role?.toString();
 
-      final chatService = ref.read(chatServiceProvider);
+      await _loadPendingRequests();
 
-      final oldMessages = await chatService.getMessages(widget.conversationId);
-      await chatService.markMessagesAsRead(widget.conversationId);
+      final oldMessages = await chatService
+          .getMessages(widget.conversationId)
+          .timeout(const Duration(seconds: 12));
+      await chatService
+          .markMessagesAsRead(widget.conversationId)
+          .timeout(const Duration(seconds: 12));
+
       final wsUrl = await chatService.buildWebSocketUrl(widget.conversationId);
 
       if (!mounted) return;
@@ -71,7 +164,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
-      _channel!.stream.listen(
+      _subscription = _channel!.stream.listen(
         (data) {
           final decoded = jsonDecode(data);
           final message = ChatMessageModel.fromJson(decoded);
@@ -82,7 +175,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           setState(() {
             final alreadyExists = messages.any((m) => m.id == message.id);
             if (!alreadyExists) {
-              messages.add(message);
+              messages.insert(0, message);
             }
           });
 
@@ -104,20 +197,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             error = 'WebSocket error: $e';
           });
         },
+        onDone: () {
+          if (!mounted) return;
+          setState(() {
+            error = 'Chat connection closed.';
+          });
+        },
       );
-
-      if (!mounted) return;
-
-      setState(() {
-        messages = oldMessages;
-        isLoading = false;
-      });
-    }
-  }
-
-      _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         error = e.toString();
         isLoading = false;
@@ -125,8 +214,63 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _startListening() async {
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'done' && mounted) {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() => _isListening = false);
+        }
+      },
+    );
+
+    if (!available) return;
+
+    if (!mounted) return;
+    setState(() => _isListening = true);
+
+    await _speech.listen(
+      onResult: (result) {
+        if (!mounted) return;
+        setState(() {
+          _messageController.text = result.recognizedWords;
+          _messageController.selection = TextSelection.fromPosition(
+            TextPosition(offset: _messageController.text.length),
+          );
+        });
+      },
+    );
+  }
+
+  Future<void> _stopListening() async {
+    await _speech.stop();
+
+    if (!mounted) return;
+    setState(() => _isListening = false);
+  }
+
+  Future<void> _speak(String text) async {
+    if (text.trim().isEmpty) return;
+
+    await _flutterTts.stop();
+    await _flutterTts.setLanguage('en-US');
+    await _flutterTts.setSpeechRate(0.45);
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
+    await _flutterTts.speak(text);
+  }
+
+  Future<void> _stopSpeaking() async {
+    await _flutterTts.stop();
+  }
+
   void _sendMessage() {
     final text = _messageController.text.trim();
+
     if (text.isEmpty || _channel == null) return;
 
     _channel!.sink.add(jsonEncode({'content': text}));
@@ -135,10 +279,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _pickAndUploadFile() async {
+    final loc = AppLocalizations.of(context)!;
+
     try {
       final result = await FilePicker.platform.pickFiles(withData: true);
 
       if (result == null || result.files.isEmpty) return;
+
+      setState(() => isSendingAttachment = true);
 
       final file = result.files.first;
       final chatService = ref.read(chatServiceProvider);
@@ -154,7 +302,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() {
         final alreadyExists = messages.any((m) => m.id == uploadedMessage.id);
         if (!alreadyExists) {
-          messages.add(uploadedMessage);
+          messages.insert(0, uploadedMessage);
         }
       });
 
@@ -165,10 +313,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('File upload failed: $e'),
+          content: Text('${loc.fileUploadFailed}: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );
+    } finally {
+      if (mounted) setState(() => isSendingAttachment = false);
     }
   }
 
@@ -176,8 +326,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 80,
-          duration: const Duration(milliseconds: 250),
+          0,
+          duration: const Duration(milliseconds: 260),
           curve: Curves.easeOut,
         );
       }
@@ -188,17 +338,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
     final suffix = dt.hour >= 12 ? 'PM' : 'AM';
+
     return '$hour:$minute $suffix';
   }
 
   String _formatDateLabel(DateTime dt) {
+    final loc = AppLocalizations.of(context)!;
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final date = DateTime(dt.year, dt.month, dt.day);
-
     final diff = today.difference(date).inDays;
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
+
+    if (diff == 0) return loc.today;
+    if (diff == 1) return loc.yesterday;
+
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
@@ -214,21 +368,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildDateHeader(ChatMessageModel message) {
+    final theme = Theme.of(context);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(14),
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: theme.dividerColor.withOpacity(0.14)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(
+                  theme.brightness == Brightness.dark ? 0.18 : 0.04,
+                ),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Text(
             _formatDateLabel(message.createdAt),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface.withOpacity(0.62),
             ),
           ),
         ),
@@ -237,79 +402,146 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessageModel message) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+
     final isMine = message.senderId.toString() == currentUserId;
+    final maxWidth = MediaQuery.of(context).size.width > 700
+        ? 480.0
+        : MediaQuery.of(context).size.width * 0.76;
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         decoration: BoxDecoration(
-          color: isMine
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surfaceVariant,
+          gradient: isMine
+              ? LinearGradient(
+                  colors: [theme.colorScheme.primary, const Color(0xFF2563EB)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isMine ? null : theme.colorScheme.surface,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMine ? 16 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 16),
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMine ? 20 : 6),
+            bottomRight: Radius.circular(isMine ? 6 : 20),
           ),
+          border: Border.all(
+            color: isMine
+                ? Colors.transparent
+                : theme.dividerColor.withOpacity(0.12),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                theme.brightness == Brightness.dark ? 0.18 : 0.05,
+              ),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
-          crossAxisAlignment:
-              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMine
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             if (message.content.isNotEmpty)
-              Text(
-                message.content,
-                style: const TextStyle(fontSize: 15),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Flexible(
+                    child: Text(
+                      message.content,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isMine
+                            ? Colors.white
+                            : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () => _speak(message.content),
+                    child: Icon(
+                      Icons.volume_up_outlined,
+                      size: 18,
+                      color: isMine ? Colors.white : theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
               ),
             if (message.attachmentUrl != null) ...[
-              if (message.content.isNotEmpty) const SizedBox(height: 8),
+              if (message.content.isNotEmpty) const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(10),
+                  color: isMine
+                      ? Colors.white.withOpacity(0.16)
+                      : theme.scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isMine
+                        ? Colors.white.withOpacity(0.18)
+                        : theme.dividerColor.withOpacity(0.10),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.insert_drive_file_outlined, size: 18),
-                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.insert_drive_file_outlined,
+                      size: 20,
+                      color: isMine ? Colors.white : theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        message.attachmentName ?? 'Attachment',
+                        message.attachmentName ?? loc.attachment,
                         overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isMine
+                              ? Colors.white
+                              : theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 7),
             Text(
               _formatTime(message.createdAt),
-              style: TextStyle(
+              style: theme.textTheme.bodySmall?.copyWith(
                 fontSize: 11,
-                color: Colors.grey.shade700,
+                color: isMine
+                    ? Colors.white70
+                    : theme.colorScheme.onSurface.withOpacity(0.48),
               ),
             ),
           ],
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 260.ms).slideY(begin: 0.08);
   }
 
   Widget _buildQuickReplyChips() {
     if (!_isDoctor) return const SizedBox.shrink();
 
+    final theme = Theme.of(context);
+
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: quickReplies.length,
@@ -318,8 +550,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final reply = quickReplies[index];
 
           return ActionChip(
-            avatar: const Icon(Icons.bolt_outlined, size: 18),
-            label: Text(reply),
+            backgroundColor: theme.colorScheme.surface,
+            side: BorderSide(color: theme.dividerColor.withOpacity(0.14)),
+            avatar: Icon(
+              Icons.bolt_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+            label: Text(
+              reply,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             onPressed: () {
               _messageController.text = reply;
               _sendMessage();
@@ -341,9 +584,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: theme.dividerColor.withOpacity(0.12),
-          ),
+          border: Border.all(color: theme.dividerColor.withOpacity(0.12)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -386,9 +627,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
           border: Border(
-            top: BorderSide(
-              color: theme.dividerColor.withOpacity(0.12),
-            ),
+            top: BorderSide(color: theme.dividerColor.withOpacity(0.12)),
           ),
           boxShadow: [
             BoxShadow(
@@ -524,53 +763,125 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    debugPrint("ROLE: $currentUserRole");
+    debugPrint("REPORT ID: ${widget.reportId}");
+    debugPrint("DOCTOR ID: ${widget.doctorId}");
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(widget.receiverName),
+        elevation: 0,
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+              child: Icon(
+                Icons.medical_services_rounded,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.receiverName,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                color: theme.colorScheme.primary,
+              ),
+            )
           : error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.red),
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: messages.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          controller: _scrollController,
+                          reverse: true,
+                          padding: const EdgeInsets.all(12),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            final message = messages[index];
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_shouldShowDateHeader(index))
+                                  _buildDateHeader(message),
+                                _buildMessageBubble(message),
+                              ],
+                            );
+                          },
+                        ),
+                ),
+                _buildQuickReplyChips(),
+
+                if (widget.reportId != null &&
+                    widget.doctorId != null &&
+                    !_isDoctor)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: _requestReportPermission,
+                      icon: const Icon(Icons.lock_open),
+                      label: const Text("Request Report Access"),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
                     ),
                   ),
-                )
-              : Column(
-                  children: [
-                    Expanded(
-                      child: messages.isEmpty
-                          ? _buildEmptyState()
-                          : ListView.builder(
-                              controller: _scrollController,
-                              reverse: true,
-                              padding: const EdgeInsets.all(12),
-                              itemCount: messages.length,
-                              itemBuilder: (context, index) {
-                                final message = messages[index];
 
-                                return Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (_shouldShowDateHeader(index))
-                                      _buildDateHeader(message),
-                                    _buildMessageBubble(message),
-                                  ],
-                                );
-                              },
-                            ),
-                    ),
-                    _buildQuickReplyChips(),
-                    _buildInputBar(),
-                  ],
-                ),
+                if (_isDoctor && pendingRequests.isNotEmpty)
+                  Column(
+                    children: pendingRequests.map((request) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
+                        ),
+                        child: ElevatedButton.icon(
+                          onPressed: () =>
+                              _approveReportPermission(request['report_id']),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: Text(
+                            "Approve ${request['patient_username']}'s Report Access",
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 50),
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                _buildInputBar(),
+              ],
+            ),
     );
   }
 }

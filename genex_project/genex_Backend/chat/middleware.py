@@ -10,6 +10,9 @@ from django.conf import settings
 
 User = get_user_model()
 
+# The middleware reads the token and identifies the logged-in user.
+
+#This makes sure only authorized users can enter the chat.
 
 @database_sync_to_async
 def get_user(validated_token):

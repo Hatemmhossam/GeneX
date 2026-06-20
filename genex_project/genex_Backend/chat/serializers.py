@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Conversation, Message
 
+#converts Django objects into JSON.
 
 class MessageSerializer(serializers.ModelSerializer):
     sender_id = serializers.IntegerField(source='sender.id', read_only=True)

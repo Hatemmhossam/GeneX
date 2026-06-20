@@ -198,3 +198,39 @@ class TwinSimulationReport(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.best_drug}"
+    
+    
+class GeneReportPermissionRequest(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('declined', 'Declined'),
+    )
+
+    report = models.ForeignKey(
+        GenePredictionReport,
+        on_delete=models.CASCADE,
+        related_name='permission_requests'
+    )
+    patient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='gene_permission_requests'
+    )
+    doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='gene_permission_approvals'
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+
+    requested_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.patient.username} -> {self.doctor.username} | {self.report.id} | {self.status}"

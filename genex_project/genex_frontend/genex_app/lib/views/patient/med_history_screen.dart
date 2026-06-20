@@ -19,14 +19,40 @@ class MedHistoryScreen extends ConsumerStatefulWidget {
 
 class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
   bool _isAdding = false;
+  String _sortOption = 'newest';
 
   final List<MedicineHistory> medicines = [];
 
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: "http://127.0.0.1:8000/api/",
-    ),
-  );
+  final Dio _dio = Dio(BaseOptions(baseUrl: "http://127.0.0.1:8000/api/"));
+
+  List<MedicineHistory> get _sortedMedicines {
+    final sorted = [...medicines];
+
+    switch (_sortOption) {
+      case 'oldest':
+        sorted.sort((a, b) => (a.date ?? '').compareTo(b.date ?? ''));
+        break;
+
+      case 'az':
+        sorted.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+        break;
+
+      case 'za':
+        sorted.sort(
+          (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
+        );
+        break;
+
+      case 'newest':
+      default:
+        sorted.sort((a, b) => (b.date ?? '').compareTo(a.date ?? ''));
+        break;
+    }
+
+    return sorted;
+  }
 
   @override
   void initState() {
@@ -65,11 +91,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
     try {
       final response = await _dio.get(
         'medicines/',
-        options: Options(
-          headers: {
-            "Authorization": "Bearer $token",
-          },
-        ),
+        options: Options(headers: {"Authorization": "Bearer $token"}),
       );
 
       if (response.statusCode == 200) {
@@ -98,14 +120,8 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
     if (trimmedName.isEmpty) return;
 
     final exists = medicines.any(
-      (m) =>
-          m.name.toLowerCase() ==
-          trimmedName.toLowerCase(),
+      (m) => m.name.toLowerCase() == trimmedName.toLowerCase(),
     );
-
-
-    // CHECK 1: Local existence check (Case-insensitive)
-  
 
     if (exists) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,15 +149,11 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
           "name": trimmedName,
           "added_at": DateTime.now().toIso8601String(),
         },
-        options: Options(
-          headers: {
-            "Authorization": "Bearer $token",
-          },
-        ),
+        options: Options(headers: {"Authorization": "Bearer $token"}),
       );
 
       if (response.statusCode == 201) {
-        ref.invalidate(medicinesProvider);
+        ref.invalidate(medicinesProvider); //refresh automatically
 
         final newMed = MedicineHistory.fromJson(response.data);
 
@@ -154,9 +166,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            "Failed to add medicine. Please try again.",
-          ),
+          content: Text("Failed to add medicine. Please try again."),
         ),
       );
     } finally {
@@ -172,32 +182,30 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
     try {
       final response = await _dio.delete(
         'medicines/${med.id}/',
-        options: Options(
-          headers: {
-            "Authorization": "Bearer $token",
-          },
-        ),
+        options: Options(headers: {"Authorization": "Bearer $token"}),
       );
 
       if (response.statusCode == 204) {
-        ref.invalidate(medicinesProvider);
+        ref.invalidate(medicinesProvider); //refresh automatically
       }
     } catch (e) {
       debugPrint("Delete Error: $e");
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to delete medicine."),
-        ),
+        const SnackBar(content: Text("Failed to delete medicine.")),
       );
     }
   }
 
-  void _dismissMedicine(int index) {
-    final removedMed = medicines[index];
+  void _dismissMedicine(MedicineHistory med) {
+    final currentIndex = medicines.indexWhere((m) => m.id == med.id);
+
+    if (currentIndex == -1) return;
+
+    final removedMed = medicines[currentIndex];
 
     setState(() {
-      medicines.removeAt(index);
+      medicines.removeAt(currentIndex);
     });
 
     ScaffoldMessenger.of(context)
@@ -209,7 +217,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
               label: "UNDO",
               onPressed: () {
                 setState(() {
-                  medicines.insert(index, removedMed);
+                  medicines.insert(currentIndex, removedMed);
                 });
               },
             ),
@@ -223,13 +231,11 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
         });
   }
 
-  void _confirmDelete(int index) {
-
-              final loc = AppLocalizations.of(context)!;
-        final theme = Theme.of(context);
+  void _confirmDelete(MedicineHistory med) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
 
     showDialog(
-
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
@@ -240,21 +246,17 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        content: Text(
-          loc.removeMedicineQuestion,
-        ),
+        content: Text(loc.removeMedicineQuestion),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(loc.cancel),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
               Navigator.pop(ctx);
-              _dismissMedicine(index);
+              _dismissMedicine(med);
             },
             child: Text(loc.delete),
           ),
@@ -267,31 +269,12 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
     final theme = Theme.of(context);
     final loc = AppLocalizations.of(context)!;
 
-  Widget _buildItem(
-    MedicineHistory med,
-  ) {
-    final theme =
-        Theme.of(context);
-
-    final isDark =
-        theme.brightness ==
-            Brightness.dark;
-
-    final loc =
-        AppLocalizations.of(context)!;
-
-    String formattedDate =
-        loc.justNow;
-
     String formattedDate = loc.justNow;
-
 
     if (med.date != null) {
       final dt = DateTime.parse(med.date!).toLocal();
 
-      formattedDate = DateFormat(
-        'yyyy-MM-dd – kk:mm',
-      ).format(dt);
+      formattedDate = DateFormat('yyyy-MM-dd – kk:mm').format(dt);
     }
 
     return Dismissible(
@@ -301,17 +284,10 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         color: Colors.redAccent,
-        child: const Icon(
-          Icons.delete,
-          color: Colors.white,
-        ),
+        child: const Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (_) {
-        final index = medicines.indexWhere((m) => m.id == med.id);
-
-        if (index != -1) {
-          _dismissMedicine(index);
-        }
+        _dismissMedicine(med);
       },
       child: Card(
         elevation: 1,
@@ -324,25 +300,49 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
               color: theme.colorScheme.onSurface,
             ),
           ),
-          subtitle: Text(
-            "${loc.addedOn}: $formattedDate",
-          ),
+          subtitle: Text("${loc.addedOn}: $formattedDate"),
           trailing: IconButton(
-            icon: const Icon(
-              Icons.delete_outline,
-              color: Colors.redAccent,
-            ),
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
             onPressed: () {
-              final currentIndex = medicines.indexOf(med);
-
-              if (currentIndex != -1) {
-                _confirmDelete(currentIndex);
-              }
+              _confirmDelete(med);
             },
           ),
-
         ),
       ),
+    );
+  }
+
+  Widget _buildSortDropdown() {
+    final theme = Theme.of(context);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          "Sort by:",
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+        DropdownButton<String>(
+          value: _sortOption,
+          borderRadius: BorderRadius.circular(12),
+          items: const [
+            DropdownMenuItem(value: 'newest', child: Text('Newest to Oldest')),
+            DropdownMenuItem(value: 'oldest', child: Text('Oldest to Newest')),
+            DropdownMenuItem(value: 'az', child: Text('A-Z')),
+            DropdownMenuItem(value: 'za', child: Text('Z-A')),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+
+            setState(() {
+              _sortOption = value;
+            });
+          },
+        ),
+      ],
     );
   }
 
@@ -351,14 +351,14 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
     final theme = Theme.of(context);
     final loc = AppLocalizations.of(context)!;
 
+    final sortedMedicines = _sortedMedicines;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           loc.medicineHistory,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       body: Padding(
@@ -368,10 +368,7 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
           children: [
             Text(
               loc.searchAddMedicine,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
@@ -380,77 +377,70 @@ class _MedHistoryScreenState extends ConsumerState<MedHistoryScreen> {
               optionsBuilder: (TextEditingValue value) async {
                 return await _getDrugSuggestions(value.text);
               },
-              fieldViewBuilder: (
-                context,
-                controller,
-                focusNode,
-                onFieldSubmitted,
-              ) {
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  onSubmitted: (value) {
-                    if (!_isAdding) {
-                      _addMedicineToDB(value);
-                      controller.clear();
-                    }
-                  },
-                  decoration: InputDecoration(
-                    hintText: "Search medicine...",
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _isAdding
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      onSubmitted: (value) {
+                        if (!_isAdding) {
+                          _addMedicineToDB(value);
+                          controller.clear();
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: "Search medicine...",
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _isAdding
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(
+                                  Icons.add_circle,
+                                  color: Colors.blue,
+                                ),
+                                onPressed: () {
+                                  _addMedicineToDB(controller.text);
+                                  controller.clear();
+                                  focusNode.unfocus();
+                                },
                               ),
-                            ),
-                          )
-                        : IconButton(
-                            icon: const Icon(
-                              Icons.add_circle,
-                              color: Colors.blue,
-                            ),
-                            onPressed: () {
-                              _addMedicineToDB(controller.text);
-                              controller.clear();
-                              focusNode.unfocus();
-                            },
-                          ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                );
-              },
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  },
             ),
 
             const SizedBox(height: 24),
 
             const Text(
               "Patient Medicines:",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 10),
 
+            if (medicines.isNotEmpty) _buildSortDropdown(),
+
+            if (medicines.isNotEmpty) const SizedBox(height: 10),
+
             Expanded(
               child: medicines.isEmpty
-                  ? const Center(
-                      child: Text(
-                        "No medicines added yet.",
-                      ),
-                    )
+                  ? const Center(child: Text("No medicines added yet."))
                   : ListView.builder(
-                      itemCount: medicines.length,
+                      itemCount: sortedMedicines.length,
                       itemBuilder: (context, index) {
-                        return _buildItem(medicines[index]);
+                        return _buildItem(sortedMedicines[index]);
                       },
                     ),
             ),

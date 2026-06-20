@@ -133,4 +133,55 @@ if (response.statusCode != 200 &&
 
   return ChatMessageModel.fromJson(jsonDecode(responseBody));
 }
+
+Future<void> requestReportPermission({
+    required int reportId,
+    required int doctorId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/request-report-permission/'),
+      headers: await _headers(),
+      body: jsonEncode({
+        'report_id': reportId,
+        'doctor_id': doctorId,
+      }),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to request permission: ${response.body}');
+    }
+  }
+
+Future<void> approveReportPermission({
+  required int reportId,
+}) async {
+  final response = await http.post(
+    Uri.parse('$baseUrl/api/approve-report-permission/'),
+    headers: await _headers(),
+    body: jsonEncode({
+      'report_id': reportId,
+    }),
+  );
+
+  if (response.statusCode != 200 && response.statusCode != 201) {
+    throw Exception('Failed to approve permission: ${response.body}');
+  }
 }
+Future<List<dynamic>> getPendingReportPermissions() async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/api/pending-report-permissions/'),
+    headers: await _headers(),
+  );
+
+  if (response.statusCode != 200) {
+    throw Exception('Failed to load pending permissions: ${response.body}');
+  }
+
+  return jsonDecode(response.body) as List<dynamic>;
+}
+
+
+
+}
+
+

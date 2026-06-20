@@ -12,7 +12,7 @@ import '../../widgets/loading_button.dart';
 import '../../widgets/premium_card.dart';
 import 'package:genex_app/l10n/app_localizations.dart';
 
-enum UploadType { vcf, geneExpression, tests, mri }
+enum UploadType { geneExpression, tests, mri }
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -22,7 +22,7 @@ class UploadScreen extends StatefulWidget {
 }
 
 class _UploadScreenState extends State<UploadScreen> {
-  UploadType _selectedType = UploadType.vcf;
+  UploadType _selectedType = UploadType.geneExpression;
   String? selectedFileName;
   PlatformFile? _pickedFile;
   bool _isLoading = false;
@@ -33,7 +33,6 @@ class _UploadScreenState extends State<UploadScreen> {
 
   // --- Controllers ---
 
-  final _ageController = TextEditingController();
   final _esrController = TextEditingController();
   final _crpController = TextEditingController();
   final _antiCcpController = TextEditingController();
@@ -54,7 +53,6 @@ class _UploadScreenState extends State<UploadScreen> {
 
   @override
   void dispose() {
-    _ageController.dispose();
     _esrController.dispose();
     _crpController.dispose();
     _antiCcpController.dispose();
@@ -70,10 +68,6 @@ class _UploadScreenState extends State<UploadScreen> {
     List<String> allowedExtensions;
 
     switch (_selectedType) {
-      case UploadType.vcf:
-        allowedExtensions = ['vcf'];
-        break;
-
       case UploadType.geneExpression:
         allowedExtensions = ['csv', 'txt'];
         break;
@@ -110,8 +104,6 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> _uploadAndAnalyze(PlatformFile file) async {
-    final loc = AppLocalizations.of(context)!;
-
     final loc = AppLocalizations.of(context)!;
 
     //analyze gene expression file and get risk score
@@ -153,10 +145,6 @@ class _UploadScreenState extends State<UploadScreen> {
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.pop(context); // closes loading dialog
-      }
 
       if (!mounted) return;
 
@@ -370,7 +358,6 @@ class _UploadScreenState extends State<UploadScreen> {
     final loc = AppLocalizations.of(context)!;
 
     //send medical tests to backend and get analysis
-    final loc = AppLocalizations.of(context)!;
 
     if (!_formKey.currentState!.validate()) {
       _showErrorSnackBar(loc.fixFormErrors);
@@ -539,8 +526,6 @@ class _UploadScreenState extends State<UploadScreen> {
     final loc = AppLocalizations.of(context)!;
 
     switch (type) {
-      case UploadType.vcf:
-        return loc.uploadVCFFile;
       case UploadType.geneExpression:
         return loc.uploadGeneExpressionFile;
       case UploadType.tests:
@@ -554,8 +539,6 @@ class _UploadScreenState extends State<UploadScreen> {
     final loc = AppLocalizations.of(context)!;
 
     switch (type) {
-      case UploadType.vcf:
-        return loc.uploadVCFInstruction;
       case UploadType.geneExpression:
         return loc.uploadGeneExpressionInstruction;
       case UploadType.tests:
@@ -567,8 +550,6 @@ class _UploadScreenState extends State<UploadScreen> {
 
   IconData _iconForType(UploadType type) {
     switch (type) {
-      case UploadType.vcf:
-        return Icons.difference_rounded;
       case UploadType.geneExpression:
         return Icons.biotech_rounded;
       case UploadType.tests:
@@ -587,73 +568,117 @@ class _UploadScreenState extends State<UploadScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(title: Text(loc.medicalAnalysisUpload)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 920),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _HeroUploadCard(
-                  title: loc.medicalAnalysisUpload,
-                  subtitle:
-                      'Upload medical files or enter lab tests to generate AI-powered health insights.',
-                ),
-                const SizedBox(height: 24),
-                _typeSelector(),
-                const SizedBox(height: 24),
-                PremiumCard(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 26,
-                              backgroundColor: theme.colorScheme.primary
-                                  .withOpacity(0.12),
-                              child: Icon(
-                                _iconForType(_selectedType),
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                title,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _instructionForType(_selectedType),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(
-                              0.65,
-                            ),
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        if (_selectedType == UploadType.tests)
-                          _testsForm()
-                        else
-                          _uploadBox(loc),
-                      ],
-                    ),
-                  ),
-                ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.08),
-              ],
+      body: Stack(
+        children: [
+          Positioned(
+            right: -180,
+            top: 140,
+            child: Transform.rotate(
+              angle: 0.18,
+              child: _softDnaImage(context, width: 350, opacity: 0.12),
             ),
           ),
+
+          Positioned(
+            left: -180,
+            bottom: -50,
+            child: Transform.rotate(
+              angle: -0.15,
+              child: _softDnaImage(context, width: 350, opacity: 0.12),
+            ),
+          ),
+
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _HeroUploadCard(
+                      title: loc.medicalAnalysisUpload,
+                      subtitle:
+                          'Upload medical files or enter lab tests to generate AI-powered health insights.',
+                    ),
+                    const SizedBox(height: 24),
+                    _typeSelector(),
+                    const SizedBox(height: 24),
+
+                    PremiumCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: theme.colorScheme.primary
+                                      .withOpacity(0.12),
+                                  child: Icon(
+                                    _iconForType(_selectedType),
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            Text(
+                              _instructionForType(_selectedType),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(
+                                  0.65,
+                                ),
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+
+                            if (_selectedType == UploadType.tests)
+                              _testsForm()
+                            else
+                              _uploadBox(loc),
+                          ],
+                        ),
+                      ),
+                    ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.08),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _softDnaImage(
+    BuildContext context, {
+    required double width,
+    required double opacity,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return IgnorePointer(
+      child: Opacity(
+        opacity: opacity,
+        child: Image.asset(
+          isDark ? 'assets/images/dna_dark.png' : 'assets/images/dna_light.png',
+          width: width,
+          fit: BoxFit.contain,
         ),
       ),
     );
@@ -663,7 +688,6 @@ class _UploadScreenState extends State<UploadScreen> {
     final loc = AppLocalizations.of(context)!;
 
     final items = [
-      (UploadType.vcf, loc.vcf, Icons.difference_rounded),
       (UploadType.geneExpression, loc.geneExpression, Icons.biotech_rounded),
       (UploadType.tests, loc.tests, Icons.science_rounded),
       (UploadType.mri, loc.mri, Icons.image_search_rounded),
@@ -756,9 +780,6 @@ class _UploadScreenState extends State<UploadScreen> {
     String buttonText;
 
     switch (_selectedType) {
-      case UploadType.vcf:
-        buttonText = loc.uploadVCF;
-        break;
       case UploadType.geneExpression:
         buttonText = loc.uploadGeneExpression;
         break;
