@@ -810,11 +810,14 @@ def get_gene_model():
     print("RENDER SKLEARN VERSION =", sklearn.__version__, flush=True)
 
     if MODEL is None:
-        print("Loading GeneX model...")
+        print("Loading MODEL...")
         MODEL = joblib.load('api/ml_asssets/best_ra_xgb_model.joblib')
+        print("MODEL loaded")
 
     if FEATURES is None:
+        print("Loading FEATURES...")
         FEATURES = joblib.load('api/ml_asssets/gene_features.joblib')
+        print("FEATURES loaded")
 
     return MODEL, FEATURES
 
